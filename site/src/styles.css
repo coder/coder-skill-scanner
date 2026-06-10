@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/*
+ * Tell Tailwind v4 explicitly which files to scan for class names. The
+ * automatic detection misses our pages in dev mode and ships an
+ * incomplete utility set; the build step happens to recover by walking
+ * the bundled module graph. Pinning it here keeps dev and prod aligned.
+ */
+@source "./index.html";
+@source "./src/**/*.{ts,tsx,css}";
+@source "./.storybook/**/*.{ts,tsx}";
+
 @theme {
   --font-sans:
     "Geist", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",

@@ -9,27 +9,28 @@ import {
 import { ErrorState, LoadingState } from "../components/State/State";
 import { MetaStrip } from "../components/MetaStrip/MetaStrip";
 import { RiskBar } from "../components/RiskBar/RiskBar";
+import { RuleBadge } from "../components/RuleBadge/RuleBadge";
 import { Sparkline } from "../components/Sparkline/Sparkline";
 import { VerdictPill } from "../components/VerdictPill/VerdictPill";
-import {
-  useHistoryIndex,
-  useLatestReport,
-} from "../lib/query";
+import { useHistoryIndex, useLatestReport } from "../lib/query";
 import { sourceRepoUrl, truncSha } from "../lib/format";
 import type { SkillEntry } from "../types/report";
 import { useHistorySparkline } from "../lib/useHistorySparkline";
 
-interface Section {
+interface SectionProps {
   title: string;
   children: React.ReactNode;
   icon?: React.ReactNode;
+  className?: string;
 }
 
-const Section: FC<Section> = ({ title, children, icon }) => (
-  <section className="rounded-lg border border-coder-smoke bg-coder-cinder">
-    <header className="flex items-center gap-2 border-b border-coder-smoke px-4 py-2.5 text-xs uppercase tracking-wider text-coder-neutral-400">
+const Section: FC<SectionProps> = ({ title, children, icon, className }) => (
+  <section
+    className={`rounded-lg border border-coder-smoke bg-coder-cinder ${className ?? ""}`}
+  >
+    <header className="flex items-center gap-2 border-b border-coder-smoke px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-coder-neutral-400">
       {icon}
-      <span className="font-medium">{title}</span>
+      <span>{title}</span>
     </header>
     <div className="px-4 py-3 text-sm text-coder-neutral-200">{children}</div>
   </section>
@@ -101,7 +102,7 @@ export const SkillDetailPage: FC = () => {
   const reasons = skill.reasons ?? [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <Link
           to="/"
@@ -124,12 +125,12 @@ export const SkillDetailPage: FC = () => {
 
       <MetaStrip report={latest.data} />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border border-coder-smoke bg-coder-cinder p-4 md:col-span-2">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-coder-smoke bg-coder-cinder p-4 sm:col-span-2">
           <div className="text-[11px] font-medium uppercase tracking-wider text-coder-neutral-400">
             Risk score
           </div>
-          <div className="mt-2 flex items-center gap-4">
+          <div className="mt-2 flex flex-wrap items-center gap-4">
             <RiskBar
               score={ss.risk_score ?? 0}
               verdict={skill.verdict}
@@ -156,8 +157,8 @@ export const SkillDetailPage: FC = () => {
           <div className="text-[11px] font-medium uppercase tracking-wider text-coder-neutral-400">
             Score over time
           </div>
-          <div className="mt-2 flex items-center gap-3">
-            <Sparkline points={sparklinePoints} />
+          <div className="mt-2">
+            <Sparkline points={sparklinePoints} width={260} height={64} />
           </div>
           <div className="mt-2 text-xs text-coder-neutral-500">
             {sparklinePoints.length === 0
@@ -167,7 +168,7 @@ export const SkillDetailPage: FC = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Section
           title="Reasons"
           icon={<ShieldAlertIcon className="size-3.5" />}
@@ -193,6 +194,8 @@ export const SkillDetailPage: FC = () => {
               <span className="text-coder-neutral-500">repo: </span>
               <a
                 href={`https://github.com/${skill.source_repo}`}
+                rel="noopener noreferrer"
+                target="_blank"
                 className="text-coder-sky hover:underline"
               >
                 {skill.source_repo}
@@ -212,6 +215,7 @@ export const SkillDetailPage: FC = () => {
               <a
                 href={srcHref}
                 rel="noopener noreferrer"
+                target="_blank"
                 className="inline-flex items-center gap-1 text-coder-sky hover:underline"
               >
                 Open at this commit <ExternalLinkIcon className="size-3" />
@@ -254,19 +258,21 @@ export const SkillDetailPage: FC = () => {
               No rules triggered.
             </div>
           ) : (
-            <ul className="space-y-1 font-mono text-xs">
-              {findingsByRule.map((f) => (
-                <li
-                  key={f.id}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <span className="text-coder-neutral-200">{f.id}</span>
-                  <span className="text-coder-neutral-400">
-                    {f.severity} &times; {f.count}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {findingsByRule.map((f) => (
+                  <RuleBadge
+                    key={f.id}
+                    id={f.id}
+                    severity={f.severity}
+                    count={f.count}
+                  />
+                ))}
+              </div>
+              <div className="mt-2 text-[11px] text-coder-neutral-500">
+                Hover or focus a badge to read the rule description.
+              </div>
+            </>
           )}
         </Section>
 
@@ -275,6 +281,7 @@ export const SkillDetailPage: FC = () => {
           <Section
             title="Raw scanner artifacts"
             icon={<FileTextIcon className="size-3.5" />}
+            className="sm:col-span-2"
           >
             <ul className="space-y-1 font-mono text-xs">
               {skill.artifacts?.skillspector_json && (
