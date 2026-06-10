@@ -18,7 +18,18 @@ from . import verdict
 def summarize_skillspector(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Extract the fields used downstream from a SkillSpector JSON report.
 
-    Returns a small dict with ``risk_score``, ``risk_severity``,
+    Reads SkillSpector's actual JSON shape:
+
+    * ``risk_assessment.{score, severity, recommendation}`` for the headline
+      risk numbers. SkillSpector emits severities in upper case
+      (``CRITICAL``, ``HIGH``, ``MEDIUM``, ``LOW``, ``INFO``); the report
+      schema requires lower case, so they are normalized here.
+    * ``issues[]`` with one entry per finding. Each issue has ``id``,
+      ``severity``, and other diagnostic fields; we only need ``id`` and
+      ``severity`` for the rolled-up counts that downstream consumers and
+      the schema care about.
+
+    Returns a dict with ``risk_score``, ``risk_severity``,
     ``risk_recommendation``, ``findings_by_severity``, ``findings_by_rule``,
     and the operational flags ``crashed`` and ``json_missing``.
     """
@@ -27,17 +38,21 @@ def summarize_skillspector(raw: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(raw, dict):
         return {"crashed": True, "json_missing": False}
 
-    findings = raw.get("filtered_findings") or []
-    if not isinstance(findings, list):
-        findings = []
+    risk_assessment = raw.get("risk_assessment")
+    if not isinstance(risk_assessment, dict):
+        risk_assessment = {}
+
+    issues = raw.get("issues") or []
+    if not isinstance(issues, list):
+        issues = []
 
     by_sev: collections.Counter[str] = collections.Counter()
     by_rule: dict[str, dict[str, Any]] = {}
-    for f in findings:
-        if not isinstance(f, dict):
+    for issue in issues:
+        if not isinstance(issue, dict):
             continue
-        sev = str(f.get("severity") or "info")
-        rule = str(f.get("rule_id") or "unknown")
+        sev = str(issue.get("severity") or "info").lower()
+        rule = str(issue.get("id") or "unknown")
         by_sev[sev] += 1
         slot = by_rule.setdefault(rule, {"id": rule, "severity": sev, "count": 0})
         slot["count"] += 1
@@ -45,9 +60,9 @@ def summarize_skillspector(raw: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "crashed": False,
         "json_missing": False,
-        "risk_score": int(raw.get("risk_score", 0)),
-        "risk_severity": str(raw.get("risk_severity") or "info"),
-        "risk_recommendation": str(raw.get("risk_recommendation") or ""),
+        "risk_score": int(risk_assessment.get("score", 0)),
+        "risk_severity": str(risk_assessment.get("severity") or "info").lower(),
+        "risk_recommendation": str(risk_assessment.get("recommendation") or ""),
         "findings_by_severity": dict(by_sev),
         "findings_by_rule": sorted(by_rule.values(), key=lambda r: (-r["count"], r["id"])),
     }

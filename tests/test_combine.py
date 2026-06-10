@@ -27,10 +27,29 @@ def test_summarize_skillspector_clean(clean_skillspector_json):
 def test_summarize_skillspector_with_findings(suspicious_skillspector_json):
     summary = combine.summarize_skillspector(suspicious_skillspector_json)
     assert summary["risk_score"] == 50
-    assert summary["findings_by_severity"] == {"error": 2, "warning": 1}
+    assert summary["findings_by_severity"] == {"high": 2, "medium": 1}
     # P3 has 2 hits, TM1 has 1; sorted by -count, then id.
     assert summary["findings_by_rule"][0]["id"] == "P3"
     assert summary["findings_by_rule"][0]["count"] == 2
+
+
+def test_summarize_skillspector_lowercases_severity(malicious_skillspector_json):
+    """SkillSpector emits UPPER CASE severities; we normalize them.
+
+    The report schema's ``risk_severity`` enum and the convention for the
+    rolled-up counters are both lower case.
+    """
+    allowed = {"info", "low", "medium", "high", "critical"}
+    summary = combine.summarize_skillspector(malicious_skillspector_json)
+    assert summary["risk_severity"] == "critical"
+    # ``risk_recommendation`` keeps its original case; SkillSpector uses
+    # values like ``DO_NOT_INSTALL`` and ``SAFE`` and the schema imposes
+    # no enum on this field.
+    assert summary["risk_recommendation"] == "DO_NOT_INSTALL"
+    for rule in summary["findings_by_rule"]:
+        assert rule["severity"] in allowed
+    for sev in summary["findings_by_severity"]:
+        assert sev in allowed
 
 
 def test_summarize_skillspector_none_means_crash():
@@ -113,6 +132,6 @@ def test_load_skillspector_json_valid(tmp_path):
     import json
 
     path = tmp_path / "ok.json"
-    path.write_text(json.dumps({"risk_score": 12}), encoding="utf-8")
+    path.write_text(json.dumps({"risk_assessment": {"score": 12}}), encoding="utf-8")
     loaded = combine.load_skillspector_json(path)
-    assert loaded == {"risk_score": 12}
+    assert loaded == {"risk_assessment": {"score": 12}}

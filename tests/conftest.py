@@ -41,12 +41,22 @@ def default_config() -> dict[str, Any]:
 
 @pytest.fixture
 def clean_skillspector_json() -> dict[str, Any]:
-    """SkillSpector output for a known-clean skill."""
+    """SkillSpector output for a known-clean skill.
+
+    Uses SkillSpector's actual JSON shape: top-level ``skill``,
+    ``risk_assessment``, ``components``, ``issues``, ``metadata`` blocks,
+    with severities in upper case.
+    """
     return {
-        "risk_score": 5,
-        "risk_severity": "info",
-        "risk_recommendation": "no significant findings",
-        "filtered_findings": [],
+        "skill": {"name": "coder/example", "path": ".agents/skills/example"},
+        "risk_assessment": {
+            "score": 5,
+            "severity": "INFO",
+            "recommendation": "SAFE",
+        },
+        "components": {},
+        "issues": [],
+        "metadata": {"scanner": "skillspector"},
     }
 
 
@@ -54,26 +64,70 @@ def clean_skillspector_json() -> dict[str, Any]:
 def suspicious_skillspector_json() -> dict[str, Any]:
     """SkillSpector output that should land in the suspicious band."""
     return {
-        "risk_score": 50,
-        "risk_severity": "medium",
-        "risk_recommendation": "review before deploy",
-        "filtered_findings": [
-            {"rule_id": "P3", "severity": "error", "message": "External Transmission"},
-            {"rule_id": "P3", "severity": "error", "message": "External Transmission"},
-            {"rule_id": "TM1", "severity": "warning", "message": "Tool Chaining"},
+        "skill": {"name": "coder/example", "path": ".agents/skills/example"},
+        "risk_assessment": {
+            "score": 50,
+            "severity": "MEDIUM",
+            "recommendation": "REVIEW",
+        },
+        "components": {},
+        "issues": [
+            {
+                "id": "P3",
+                "category": "External Transmission",
+                "severity": "HIGH",
+                "confidence": 0.8,
+                "location": {"file": "SKILL.md", "start_line": 1, "end_line": None},
+            },
+            {
+                "id": "P3",
+                "category": "External Transmission",
+                "severity": "HIGH",
+                "confidence": 0.8,
+                "location": {"file": "SKILL.md", "start_line": 12, "end_line": None},
+            },
+            {
+                "id": "TM1",
+                "category": "Tool Chaining",
+                "severity": "MEDIUM",
+                "confidence": 0.6,
+                "location": {"file": "SKILL.md", "start_line": 20, "end_line": None},
+            },
         ],
+        "metadata": {"scanner": "skillspector"},
     }
 
 
 @pytest.fixture
 def malicious_skillspector_json() -> dict[str, Any]:
-    """SkillSpector output that should be flagged malicious by v1 thresholds."""
+    """SkillSpector output that should be flagged malicious by v1 thresholds.
+
+    Mirrors what we observe on a real malicious-skill scan: score=100,
+    severity=CRITICAL, recommendation=DO_NOT_INSTALL.
+    """
     return {
-        "risk_score": 85,
-        "risk_severity": "critical",
-        "risk_recommendation": "do not install",
-        "filtered_findings": [
-            {"rule_id": "P1", "severity": "error", "message": "Instruction Override"},
-            {"rule_id": "P5", "severity": "error", "message": "Harmful Content"},
+        "skill": {"name": "coder/example", "path": ".agents/skills/example"},
+        "risk_assessment": {
+            "score": 85,
+            "severity": "CRITICAL",
+            "recommendation": "DO_NOT_INSTALL",
+        },
+        "components": {},
+        "issues": [
+            {
+                "id": "P1",
+                "category": "Instruction Override",
+                "severity": "HIGH",
+                "confidence": 0.9,
+                "location": {"file": "SKILL.md", "start_line": 3, "end_line": None},
+            },
+            {
+                "id": "P5",
+                "category": "Harmful Content",
+                "severity": "CRITICAL",
+                "confidence": 0.95,
+                "location": {"file": "SKILL.md", "start_line": 18, "end_line": None},
+            },
         ],
+        "metadata": {"scanner": "skillspector"},
     }
