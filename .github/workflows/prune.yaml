@@ -1,0 +1,38 @@
+name: prune
+on:
+  schedule:
+    # Weekly Sundays 04:33 UTC.
+    - cron: "33 4 * * 0"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  prune-releases:
+    name: Delete scan releases older than retention window
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Determine retention in days
+        id: cfg
+        run: |
+          set -euo pipefail
+          days="$(grep -E '^\s*retention_days:' config.yaml | head -1 | awk '{print $2}')"
+          echo "days=${days:-90}" >> "$GITHUB_OUTPUT"
+      - name: Delete old scan releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DAYS: ${{ steps.cfg.outputs.days }}
+        run: |
+          set -euo pipefail
+          cutoff_epoch="$(date -u -d "${DAYS} days ago" +%s)"
+          gh release list --limit 1000 --json tagName,createdAt \
+            | jq -r --argjson cutoff "${cutoff_epoch}" \
+                '.[] | select(.tagName | startswith("scan-")) | select((.createdAt | fromdateiso8601) < $cutoff) | .tagName' \
+            | while read -r tag; do
+                echo "Deleting old release ${tag}"
+                gh release delete "${tag}" --yes --cleanup-tag
+              done

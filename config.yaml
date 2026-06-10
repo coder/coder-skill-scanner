@@ -6,11 +6,11 @@
 config_version: 1
 
 catalogue:
-  # Where to enumerate skills from. Both current production format
+  # Where to enumerate skills from. Both the current production format
   # (in-tree under .agents/skills/) and the future external-sources
   # format (registry/<ns>/skills/README.md with sources[].repo) are
-  # supported. The enumerator tries external_sources first when it
-  # exists in the cloned catalogue and falls back to in_tree.
+  # supported. When both name the same slug, the external-sources entry
+  # wins.
   registry_repo:
     owner: coder
     repo: registry
@@ -18,66 +18,38 @@ catalogue:
   formats:
     external_sources:
       enabled: true
-      # Path glob, relative to the cloned catalogue. The frontmatter
-      # under each matched README is parsed for sources[].repo and
-      # sources[].skills.<slug>.
+      # Path glob, relative to the cloned catalogue. Each matched README
+      # has its frontmatter parsed for sources[].repo plus per-skill
+      # overrides keyed by slug.
       readme_glob: registry/*/skills/README.md
     in_tree:
       enabled: true
       # The namespace is fixed for in-tree skills today (coder).
       namespace: coder
-      # Path glob inside the registry repo. Each <slug>/SKILL.md is one
+      # Path glob inside the catalogue repo. Each <slug>/SKILL.md is one
       # skill row in the matrix.
       base_path: .agents/skills
 
 scanners:
   skillspector:
     enabled: true
-    # Pin by commit SHA. Bumped via Renovate-style PRs with manual review
-    # of any verdict-shape change.
+    # Pin by commit SHA. Dependabot bumps this through pyproject.toml's
+    # pip ecosystem; we mirror the same pin here so the workflow uses
+    # the same version the tests cover.
     pin: "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@2eb844780ab163f01468ecf142c40a2ec0fcaec0"
     flags:
       - "--no-llm"
-    # SkillSpector exits non-zero when findings are present even though
-    # the JSON output writes successfully. Treat a missing JSON as the
-    # only true crash; everything else is a verdict signal.
-    treat_exit_nonzero_as_crash: false
 
-  clamav:
-    enabled: true
-    # apt packages installed in the scan job. clamav-freshclam refreshes
-    # signatures on each run; cache via actions/cache keyed on the day.
-    apt_packages:
-      - clamav
-      - clamav-daemon
-      - clamav-freshclam
-    flags:
-      - "--recursive"
-      - "--infected"
-      - "--no-summary"
-      - "--detect-pua=yes"
-      - "--cross-fs=no"
-
-# Per-skill verdict policy. All thresholds live here so policy is
-# reviewable in one place. Order is malicious > suspicious > unknown
-# > clean; the first matching rule wins.
+# Per-skill verdict policy. v1 has one input (SkillSpector risk_score).
+# When more scanners join the pipeline we add new threshold fields here
+# and a matching branch in scanner/verdict.py.
 verdict:
-  malicious_if:
-    - clamav.infected_files > 0
-    - skillspector.risk_score >= 75
-  suspicious_if:
-    - skillspector.risk_score >= 40
-    - clamav.error_count > 0
-  unknown_if:
-    - skillspector.crashed == true
-    - skillspector.json_missing == true
-    - clamav.signature_db_age_hours > 48
-    - catalogue_drift_present
-  # Anything else is clean.
+  malicious_risk_score: 75
+  suspicious_risk_score: 40
 
 publish:
-  # One GitHub Release per scan. Latest is the rolling pointer the proxy
-  # falls back to when Pages is degraded.
+  # One GitHub Release per scan. The rolling `latest` tag is the floor
+  # the registry-server proxy falls back to when Pages is degraded.
   release:
     tag_format: "scan-{utc:%Y-%m-%dT%H-%MZ}"
     rolling_tag: latest
@@ -93,7 +65,6 @@ publish:
       history_retention_days: 30
 
 # The schedule fires at :17 past the hour, every 6 hours, to dodge the
-# top-of-hour cron-drift cluster. Community reports show 5-15 min
-# routine drift at :00 and 30+ min on busy days.
+# top-of-hour cron-drift cluster on shared GitHub-hosted runners.
 schedule:
   cron: "17 */6 * * *"

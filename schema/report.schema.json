@@ -52,7 +52,8 @@
     "scanners": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["skillspector", "clamav"],
+      "required": ["skillspector"],
+      "description": "Scanner metadata. v1 ships with SkillSpector only. New scanners are added here through a minor schema bump.",
       "properties": {
         "skillspector": {
           "type": "object",
@@ -61,15 +62,6 @@
           "properties": {
             "version_pin": { "type": "string" },
             "args": { "type": "array", "items": { "type": "string" } }
-          }
-        },
-        "clamav": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["version", "signature_db_date"],
-          "properties": {
-            "version": { "type": "string" },
-            "signature_db_date": { "type": "string", "format": "date-time" }
           }
         }
       }
@@ -147,19 +139,17 @@
         "scanners": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["skillspector", "clamav"],
+          "required": ["skillspector"],
           "properties": {
-            "skillspector": { "$ref": "#/$defs/SkillSpectorScanner" },
-            "clamav": { "$ref": "#/$defs/ClamAVScanner" }
+            "skillspector": { "$ref": "#/$defs/SkillSpectorScanner" }
           }
         },
         "artifacts": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "skillspector_sarif": { "type": "string", "format": "uri" },
-            "skillspector_json": { "type": "string", "format": "uri" },
-            "clamav_log": { "type": "string", "format": "uri" }
+            "skillspector_sarif": { "type": "string" },
+            "skillspector_json": { "type": "string" }
           }
         }
       }
@@ -191,28 +181,6 @@
               "id": { "type": "string" },
               "severity": { "type": "string" },
               "count": { "type": "integer", "minimum": 0 }
-            }
-          }
-        }
-      }
-    },
-    "ClamAVScanner": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["infected_files", "error_count", "signature_db_age_hours"],
-      "properties": {
-        "infected_files": { "type": "integer", "minimum": 0 },
-        "error_count": { "type": "integer", "minimum": 0 },
-        "signature_db_age_hours": { "type": "integer", "minimum": 0 },
-        "infections": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["path", "signature"],
-            "properties": {
-              "path": { "type": "string" },
-              "signature": { "type": "string" }
             }
           }
         }

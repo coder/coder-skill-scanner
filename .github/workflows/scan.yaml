@@ -1,0 +1,317 @@
+name: scan
+
+on:
+  schedule:
+    # Every 6h at :17 to dodge top-of-hour cron drift.
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "config.yaml"
+      - "scanner/**"
+      - ".github/workflows/scan.yaml"
+
+permissions: {}
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  enumerate:
+    name: Enumerate skill sources
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+      catalogue_sha: ${{ steps.list.outputs.catalogue_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Enumerate
+        id: list
+        run: scanner enumerate --github-output >> "$GITHUB_OUTPUT"
+
+  scan:
+    name: Scan ${{ matrix.namespace }}/${{ matrix.slug }}
+    needs: enumerate
+    if: needs.enumerate.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.enumerate.outputs.matrix) }}
+    steps:
+      - name: Checkout scanner
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Install scanner
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Install SkillSpector
+        run: pip install "$(python -c 'import yaml; print(yaml.safe_load(open("config.yaml"))["scanners"]["skillspector"]["pin"])')"
+      - name: Checkout source repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ matrix.source_repo }}
+          ref: ${{ matrix.source_ref }}
+          path: source
+          persist-credentials: false
+      - name: Resolve source SHA
+        id: source_sha
+        run: |
+          set -euo pipefail
+          sha="$(git -C source rev-parse HEAD)"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+      - name: Verify skill path exists
+        id: path_check
+        run: |
+          set -euo pipefail
+          if [[ -d "source/${{ matrix.skill_path }}" ]]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "Skill path source/${{ matrix.skill_path }} not present upstream; will report catalogue drift." >&2
+          fi
+      - name: SkillSpector (JSON)
+        if: steps.path_check.outputs.drift == 'false'
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          skillspector scan "source/${{ matrix.skill_path }}" \
+            --no-llm \
+            --format json \
+            --output "out/skillspector.json" || true
+      - name: SkillSpector (SARIF)
+        if: steps.path_check.outputs.drift == 'false'
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          skillspector scan "source/${{ matrix.skill_path }}" \
+            --no-llm \
+            --format sarif \
+            --output "out/skillspector.sarif" || true
+      - name: Combine
+        run: |
+          mkdir -p out
+          scanner combine \
+            --namespace "${{ matrix.namespace }}" \
+            --slug "${{ matrix.slug }}" \
+            --source-repo "${{ matrix.source_repo }}" \
+            --source-ref "${{ matrix.source_ref }}" \
+            --source-sha "${{ steps.source_sha.outputs.sha }}" \
+            --skill-path "${{ matrix.skill_path }}" \
+            ${{ steps.path_check.outputs.drift == 'true' && '--catalogue-drift' || '' }} \
+            --skillspector-json out/skillspector.json \
+            --output out/skill.json
+      - name: Upload skill artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.1.0
+        with:
+          name: skill-${{ matrix.namespace }}-${{ matrix.slug }}
+          path: out/
+          retention-days: 90
+
+  index:
+    name: Build latest.json
+    needs: [enumerate, scan]
+    if: always() && needs.enumerate.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout scanner
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Download all skill artifacts
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v5.0.0
+        with:
+          path: scans
+          pattern: skill-*
+      - name: Aggregate
+        env:
+          SCANNER_CATALOGUE_SHA: ${{ needs.enumerate.outputs.catalogue_sha }}
+        run: scanner aggregate scans --output latest.json
+      - name: Show summary
+        run: |
+          python -c "import json; r=json.load(open('latest.json')); print(json.dumps(r['summary'], indent=2))"
+      - name: Upload scan-index artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.1.0
+        with:
+          name: scan-index
+          path: latest.json
+          retention-days: 90
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: index
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Download scan-index
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v5.0.0
+        with:
+          name: scan-index
+          path: .
+      - name: Download all skill artifacts
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v5.0.0
+        with:
+          path: skills
+          pattern: skill-*
+      - name: Stage release assets
+        id: stage
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y-%m-%dT%H-%MZ)"
+          tag="scan-${stamp}"
+          mkdir -p release-assets
+          cp latest.json release-assets/
+          # Each per-skill artifact is one directory under skills/.
+          shopt -s nullglob
+          for d in skills/skill-*; do
+            base="$(basename "$d")"
+            if [[ -f "${d}/skillspector.sarif" ]]; then
+              cp "${d}/skillspector.sarif" "release-assets/${base}.sarif"
+            fi
+            if [[ -f "${d}/skillspector.json" ]]; then
+              cp "${d}/skillspector.json" "release-assets/${base}.skillspector.json"
+            fi
+            if [[ -f "${d}/skill.json" ]]; then
+              cp "${d}/skill.json" "release-assets/${base}.skill.json"
+            fi
+          done
+          ls -la release-assets/
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "stamp=${stamp}" >> "$GITHUB_OUTPUT"
+      - name: Create timestamped release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.stage.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release create "${TAG}" \
+            --title "Scan ${TAG}" \
+            --notes "Automated scan run. See https://coder.github.io/coder-skill-scanner/latest.json for the public report." \
+            release-assets/*
+      - name: Update rolling latest tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest \
+            --title "Latest scan" \
+            --notes "Rolling pointer to the most recent scan. Updated automatically." \
+            release-assets/latest.json
+
+  publish-pages:
+    name: Publish to GitHub Pages
+    needs: index
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Download scan-index
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v5.0.0
+        with:
+          name: scan-index
+          path: .
+      - name: Build pages tree
+        run: |
+          set -euo pipefail
+          mkdir -p pages/history
+          cp latest.json pages/latest.json
+          cp schema/report.schema.json pages/schema.json
+          stamp="$(date -u +%Y-%m-%dT%H-%MZ)"
+          mkdir -p "pages/history/$(date -u +%Y-%m-%d)"
+          cp latest.json "pages/history/$(date -u +%Y-%m-%d)/${stamp}.json"
+          cat > pages/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>coder-skill-scanner</title>
+          <h1>coder-skill-scanner</h1>
+          <p>Public scan reports for the Coder registry.</p>
+          <ul>
+            <li><a href="latest.json">latest.json</a></li>
+            <li><a href="schema.json">schema.json</a> (v1)</li>
+            <li><a href="history/">history/</a></li>
+          </ul>
+          HTML
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: pages
+      - name: Deploy Pages
+        id: deploy
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+  open-issue-on-failure:
+    name: Open or update tracker issue
+    needs: [enumerate, scan, index, publish-release, publish-pages]
+    if: failure() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Open or update tracker issue
+        uses: JasonEtco/create-an-issue@1b14a70e4d8dc185e5cc76d3bec9eab20257b2c5 # v2.9.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          filename: .github/ISSUE_TEMPLATE/scanner-down.md
+          update_existing: true
+          search_existing: open
+
+  notify-slack-on-failure:
+    name: Slack notification on failure
+    needs: [enumerate, scan, index, publish-release, publish-pages]
+    if: failure() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Post to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
+            echo "SLACK_WEBHOOK_URL secret not set; skipping Slack notification."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error \
+            -X POST -H "Content-Type: application/json" \
+            -d "{\"text\":\":rotating_light: coder-skill-scanner run failed: ${WORKFLOW_URL}\"}" \
+            "${SLACK_WEBHOOK_URL}"

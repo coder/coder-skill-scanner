@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # Python deps from pyproject.toml. Also picks up the SkillSpector
+  # git pin if Dependabot's git-pin handling is enabled by GitHub for
+  # this org; otherwise the pin is bumped manually via PR.
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # GitHub Actions SHAs across every workflow.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels: ["deps", "github-actions"]
+    commit-message:
+      prefix: "chore(deps)"
