@@ -16,11 +16,11 @@ def test_clean_below_suspicious_threshold(default_config):
 
 def test_suspicious_at_threshold(default_config):
     result = verdict.evaluate(
-        skillspector={"risk_score": 40, "crashed": False, "json_missing": False},
+        skillspector={"risk_score": 51, "crashed": False, "json_missing": False},
         config=default_config,
     )
     assert result.verdict == "suspicious"
-    assert any("40" in r for r in result.reasons)
+    assert any("51" in r for r in result.reasons)
 
 
 def test_suspicious_between_thresholds(default_config):
@@ -33,7 +33,7 @@ def test_suspicious_between_thresholds(default_config):
 
 def test_malicious_at_threshold(default_config):
     result = verdict.evaluate(
-        skillspector={"risk_score": 75, "crashed": False, "json_missing": False},
+        skillspector={"risk_score": 81, "crashed": False, "json_missing": False},
         config=default_config,
     )
     assert result.verdict == "malicious"

@@ -26,7 +26,7 @@ def test_summarize_skillspector_clean(clean_skillspector_json):
 
 def test_summarize_skillspector_with_findings(suspicious_skillspector_json):
     summary = combine.summarize_skillspector(suspicious_skillspector_json)
-    assert summary["risk_score"] == 50
+    assert summary["risk_score"] == 60
     assert summary["findings_by_severity"] == {"high": 2, "medium": 1}
     # P3 has 2 hits, TM1 has 1; sorted by -count, then id.
     assert summary["findings_by_rule"][0]["id"] == "P3"

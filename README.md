@@ -107,14 +107,19 @@ Today's policy lives in `config.yaml`:
 
 ```yaml
 verdict:
-  malicious_risk_score: 75
-  suspicious_risk_score: 40
+  malicious_risk_score: 81
+  suspicious_risk_score: 51
 ```
 
-SkillSpector's `risk_score` (0-100) is the only input. The architecture
-keeps room for additional scanners (gitleaks, Semgrep, VirusTotal
-Premium, etc.); adding one is a new module under `scanner/`, a new
-threshold field here, and a minor schema bump.
+SkillSpector's `risk_score` (0-100) is the only input. The thresholds
+are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands;
+[`docs/CALIBRATION.md`](./docs/CALIBRATION.md) walks through the
+evidence (SkillSpector source, the ClawHub paper, our in-tree
+catalogue) behind the chosen numbers.
+
+The architecture keeps room for additional scanners (gitleaks, Semgrep,
+VirusTotal Premium, etc.); adding one is a new module under `scanner/`,
+a new threshold field here, and a minor schema bump.
 
 ## Failure tracking
 

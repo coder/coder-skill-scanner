@@ -33,8 +33,8 @@ def default_config() -> dict[str, Any]:
             },
         },
         "verdict": {
-            "malicious_risk_score": 75,
-            "suspicious_risk_score": 40,
+            "malicious_risk_score": 81,
+            "suspicious_risk_score": 51,
         },
     }
 
@@ -66,9 +66,9 @@ def suspicious_skillspector_json() -> dict[str, Any]:
     return {
         "skill": {"name": "coder/example", "path": ".agents/skills/example"},
         "risk_assessment": {
-            "score": 50,
-            "severity": "MEDIUM",
-            "recommendation": "REVIEW",
+            "score": 60,
+            "severity": "HIGH",
+            "recommendation": "DO_NOT_INSTALL",
         },
         "components": {},
         "issues": [

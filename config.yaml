@@ -45,9 +45,25 @@ scanners:
 # Per-skill verdict policy. v1 has one input (SkillSpector risk_score).
 # When more scanners join the pipeline we add new threshold fields here
 # and a matching branch in scanner/verdict.py.
+#
+# Thresholds are aligned to SkillSpector's own severity bands so that the
+# UI verdict matches the recommendation field SkillSpector returns:
+#
+#   0-20   LOW       SAFE             -> verdict: clean
+#   21-50  MEDIUM    CAUTION          -> verdict: clean (advisory; see below)
+#   51-80  HIGH      DO_NOT_INSTALL   -> verdict: suspicious
+#   81-100 CRITICAL  DO_NOT_INSTALL   -> verdict: malicious
+#
+# Rationale and source links live in docs/CALIBRATION.md. Short version:
+# SkillSpector's static-analysis layer is loud on real catalogues (the
+# ClawHub paper measured a ~49% positive rate on 67k skills) and is
+# advisory rather than authoritative, so we only escalate above its
+# HIGH cutoff. CAUTION-band findings still appear in the per-skill page
+# so reviewers can see them; we just do not flag the skill as suspicious
+# at the catalogue level.
 verdict:
-  malicious_risk_score: 75
-  suspicious_risk_score: 40
+  malicious_risk_score: 81
+  suspicious_risk_score: 51
 
 publish:
   # One GitHub Release per scan. The rolling `latest` tag is the floor

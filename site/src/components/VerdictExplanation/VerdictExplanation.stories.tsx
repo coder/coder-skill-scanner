@@ -10,7 +10,7 @@ const baseSkill: SkillEntry = {
   source_sha: "0308038abcde",
   skill_path: "skills/setup",
   verdict: "malicious",
-  reasons: ["skillspector risk_score=100 >= malicious threshold 75"],
+  reasons: ["skillspector risk_score=100 >= malicious threshold 81"],
   scanners: {
     skillspector: {
       risk_score: 100,
@@ -49,12 +49,12 @@ export const Suspicious: Story = {
     skill: {
       ...baseSkill,
       verdict: "suspicious",
-      reasons: ["skillspector risk_score=58 >= suspicious threshold 40"],
+      reasons: ["skillspector risk_score=60 >= suspicious threshold 51"],
       scanners: {
         skillspector: {
-          risk_score: 58,
-          risk_severity: "medium",
-          risk_recommendation: "REVIEW",
+          risk_score: 60,
+          risk_severity: "high",
+          risk_recommendation: "DO_NOT_INSTALL",
           findings_by_severity: { medium: 4, high: 1 },
           findings_by_rule: [
             { id: "P3", severity: "high", count: 2 },
