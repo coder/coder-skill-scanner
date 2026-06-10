@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Public security scan results for skills published in the Coder registry.">
+  <title>Coder Skill Scanner</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%2309090b'/><path d='M9 11h14M9 16h10M9 21h14' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Coder dark tokens, see coder/coder site/src/theme/dark/*.ts */
+      --bg-l1: #09090b;            /* zinc-950 */
+      --bg-l2: #18181b;            /* zinc-900 */
+      --bg-l3: #27272a;            /* zinc-800 */
+      --outline: #3f3f46;          /* zinc-700 */
+      --outline-strong: #52525b;   /* zinc-600 */
+      --text: #fafafa;             /* zinc-50 */
+      --text-muted: #a1a1aa;       /* zinc-400 */
+      --text-subtle: #71717a;      /* zinc-500 */
+
+      --accent: #38bdf8;           /* sky-400, "active" role */
+      --accent-strong: #0284c7;    /* sky-600 */
+
+      --success-bg: #052e16;       /* green-950 */
+      --success-border: #22c55e;   /* green-500 */
+      --success-fg: #86efac;       /* green-300 */
+      --warning-bg: #451a03;       /* amber-950 */
+      --warning-border: #f59e0b;   /* amber-500 */
+      --warning-fg: #fcd34d;       /* amber-300 */
+      --error-bg: #450a0a;         /* red-950 */
+      --error-border: #dc2626;     /* red-600 */
+      --error-fg: #fca5a5;         /* red-300 */
+      --info-bg: #1c1917;          /* zinc-900-ish */
+      --info-border: #71717a;      /* zinc-500 */
+      --info-fg: #d4d4d8;          /* zinc-300 */
+
+      --radius: 8px;
+      --radius-sm: 6px;
+      --shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
+      --font-body: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Geist Mono", "IBM Plex Mono", "Liberation Mono", Menlo, Consolas, monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg-l1);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+
+    /* Layout */
+    .nav {
+      border-bottom: 1px solid var(--outline);
+      background: var(--bg-l1);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .nav-inner {
+      max-width: 1280px; margin: 0 auto; padding: 12px 24px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; }
+    .brand svg { width: 22px; height: 22px; }
+    .brand-name { letter-spacing: -0.01em; }
+    .brand-sub { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+    .nav-spacer { flex: 1; }
+    .nav-link { color: var(--text-muted); font-size: 13px; padding: 6px 10px; border-radius: var(--radius-sm); }
+    .nav-link:hover { background: var(--bg-l2); color: var(--text); text-decoration: none; }
+
+    .container { max-width: 1280px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+    .hero h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 6px; }
+    .hero p { color: var(--text-muted); margin: 0; max-width: 64ch; }
+
+    /* Metadata strip */
+    .meta {
+      display: flex; flex-wrap: wrap; gap: 8px 18px;
+      padding: 12px 16px;
+      background: var(--bg-l2);
+      border: 1px solid var(--outline);
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .meta strong { color: var(--text); font-weight: 500; }
+
+    /* Verdict KPI cards */
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .kpi {
+      border: 1px solid var(--outline);
+      background: var(--bg-l2);
+      border-radius: var(--radius);
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi::before {
+      content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
+      background: var(--outline-strong);
+    }
+    .kpi.clean::before      { background: var(--success-border); }
+    .kpi.suspicious::before { background: var(--warning-border); }
+    .kpi.malicious::before  { background: var(--error-border); }
+    .kpi.unknown::before    { background: var(--info-border); }
+    .kpi-label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
+    .kpi-value { font-family: var(--font-mono); font-size: 28px; font-weight: 600; margin-top: 4px; }
+
+    /* Table card */
+    .card {
+      border: 1px solid var(--outline);
+      background: var(--bg-l2);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--outline);
+      background: var(--bg-l2);
+    }
+    .card-title { font-weight: 600; font-size: 15px; }
+    .card-sub { color: var(--text-muted); font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left; vertical-align: middle;
+      padding: 12px 18px; font-size: 13px;
+      border-bottom: 1px solid var(--outline);
+    }
+    th {
+      color: var(--text-muted); font-weight: 500; font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      background: var(--bg-l2); position: sticky; top: 0;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr.skill-row { cursor: pointer; }
+    tbody tr.skill-row:hover { background: var(--bg-l3); }
+    tbody tr.skill-detail td { background: var(--bg-l1); padding: 0 18px 16px; border-bottom: 1px solid var(--outline); }
+    tbody tr.skill-detail.hidden { display: none; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 14px 0 4px; }
+    .detail-block { background: var(--bg-l2); border: 1px solid var(--outline); border-radius: var(--radius-sm); padding: 12px 14px; }
+    .detail-block h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 500; }
+    .detail-block ul { margin: 0; padding: 0; list-style: none; }
+    .detail-block li { font-family: var(--font-mono); font-size: 12px; padding: 2px 0; display: flex; justify-content: space-between; gap: 12px; }
+    .detail-block li .lbl { color: var(--text); }
+    .detail-block li .val { color: var(--text-muted); }
+    .reasons { color: var(--text-muted); font-size: 12px; margin: 0; }
+    .reasons li { margin: 2px 0; }
+
+    /* Verdict pills */
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 500; letter-spacing: 0.01em;
+      border: 1px solid var(--outline-strong);
+      background: var(--bg-l3); color: var(--text-muted);
+      font-family: var(--font-body);
+    }
+    .pill::before {
+      content: ""; width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor;
+    }
+    .pill.clean      { background: var(--success-bg); border-color: var(--success-border); color: var(--success-fg); }
+    .pill.suspicious { background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning-fg); }
+    .pill.malicious  { background: var(--error-bg);   border-color: var(--error-border);   color: var(--error-fg); }
+    .pill.unknown    { background: var(--info-bg);    border-color: var(--info-border);    color: var(--info-fg); }
+
+    /* Risk meter */
+    .risk { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12px; }
+    .risk-bar { width: 80px; height: 5px; background: var(--bg-l3); border-radius: 3px; overflow: hidden; border: 1px solid var(--outline); }
+    .risk-bar > span { display: block; height: 100%; }
+    .risk-bar > span.clean      { background: var(--success-border); }
+    .risk-bar > span.suspicious { background: var(--warning-border); }
+    .risk-bar > span.malicious  { background: var(--error-border); }
+    .risk-bar > span.unknown    { background: var(--info-border); }
+
+    /* Source link */
+    .src { color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }
+    .src a { color: var(--text-muted); }
+    .src a:hover { color: var(--accent); }
+
+    /* Footer */
+    footer {
+      margin-top: 40px; padding: 20px 0;
+      border-top: 1px solid var(--outline);
+      color: var(--text-subtle); font-size: 12px;
+      display: flex; gap: 18px; flex-wrap: wrap; align-items: center;
+    }
+    footer a { color: var(--text-muted); }
+
+    /* Empty / loading */
+    .placeholder {
+      padding: 28px; text-align: center;
+      color: var(--text-muted); font-size: 13px;
+    }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid var(--outline); border-top-color: var(--accent);
+      border-radius: 50%; vertical-align: middle; margin-right: 8px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 720px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .hero { flex-direction: column; align-items: flex-start; }
+      .detail-grid { grid-template-columns: 1fr; }
+      th, td { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="./">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="6" fill="#09090b" stroke="#3f3f46"/>
+          <path d="M9 11h14M9 16h10M9 21h14" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>
+          <span class="brand-name">coder-skill-scanner</span>
+          <span class="brand-sub" id="brand-sub"></span>
+        </span>
+      </a>
+      <div class="nav-spacer"></div>
+      <a class="nav-link" href="latest.json">latest.json</a>
+      <a class="nav-link" href="schema.json">schema</a>
+      <a class="nav-link" href="https://github.com/coder/coder-skill-scanner" rel="noopener">GitHub</a>
+      <a class="nav-link" href="https://registry.coder.com" rel="noopener">registry</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <h1>Skill scan results</h1>
+        <p>Verdicts and risk scores for every skill published in the Coder registry. Re-scanned every 6 hours. Open data, reproducible from this repo.</p>
+      </div>
+    </section>
+
+    <section class="meta" id="meta">
+      <span class="spinner"></span> Loading <span class="mono">latest.json</span>
+      <noscript>
+        <span><a href="latest.json">latest.json</a> &middot; <a href="schema.json">schema.json</a> &middot; <a href="history/">history/</a></span>
+      </noscript>
+    </section>
+
+    <section class="kpis" id="kpis" aria-label="Verdict counts" hidden></section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Skills</div>
+          <div class="card-sub" id="skills-sub">Click a row to see scanner details</div>
+        </div>
+      </div>
+      <div id="skills-wrap">
+        <div class="placeholder" id="skills-placeholder"><span class="spinner"></span>Waiting for report</div>
+      </div>
+    </section>
+
+    <footer>
+      <span>Scanner v1 &middot; SkillSpector only</span>
+      <a href="latest.json">latest.json</a>
+      <a href="schema.json">schema (v1)</a>
+      <a href="history/">history</a>
+      <a href="https://github.com/coder/coder-skill-scanner">source</a>
+      <a href="https://github.com/coder/coder-skill-scanner/blob/main/LICENSE">Apache-2.0</a>
+    </footer>
+  </main>
+
+  <script>
+    const VERDICTS = ["clean", "suspicious", "malicious", "unknown"];
+    const fmtDate = (s) => {
+      try {
+        const d = new Date(s);
+        return d.toISOString().replace("T", " ").replace(/\.\d+Z$/, "Z");
+      } catch (_) { return s; }
+    };
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]
+    ));
+    const truncSha = (s) => s ? String(s).slice(0, 7) : "";
+    const repoUrl = (repo, ref, path) => {
+      const base = `https://github.com/${repo}`;
+      if (!ref) return base;
+      const sub = path ? `/${path.replace(/^\//, "")}` : "";
+      return `${base}/tree/${ref}${sub}`;
+    };
+    const cmpVerdict = (a, b) => VERDICTS.indexOf(a) - VERDICTS.indexOf(b);
+
+    fetch("latest.json", { cache: "no-cache" })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(render)
+      .catch(err => {
+        document.getElementById("meta").innerHTML =
+          `Could not load <code>latest.json</code>: ${esc(err.message)}. ` +
+          `Open <a href="latest.json">latest.json</a> directly.`;
+        document.getElementById("skills-placeholder").textContent =
+          "No report available.";
+      });
+
+    function render(data) {
+      const meta = document.getElementById("meta");
+      const run = data.scanner_run || {};
+      const cat = data.catalogue || {};
+      const runHref = run.run_url || "#";
+      const catHref = `https://github.com/${cat.owner}/${cat.repo}/tree/${cat.sha || cat.ref}`;
+      meta.innerHTML = [
+        `<span><strong>Last scan</strong> <span class="mono">${esc(fmtDate(data.generated_at))}</span></span>`,
+        `<span><strong>Schema</strong> <span class="mono">v${esc(data.schema_version)}</span></span>`,
+        `<span><strong>Catalogue</strong> <a class="mono" href="${esc(catHref)}" rel="noopener">${esc(cat.owner)}/${esc(cat.repo)}@${esc(truncSha(cat.sha))}</a></span>`,
+        run.run_id ? `<span><strong>Run</strong> <a class="mono" href="${esc(runHref)}" rel="noopener">#${esc(run.run_id)}</a></span>` : "",
+        `<span><strong>SkillSpector</strong> <span class="mono">${esc((data.scanners && data.scanners.skillspector && data.scanners.skillspector.version_pin) || "n/a")}</span></span>`,
+      ].filter(Boolean).join("");
+
+      const kpis = document.getElementById("kpis");
+      kpis.hidden = false;
+      const v = (data.summary && data.summary.verdicts) || {};
+      kpis.innerHTML = VERDICTS.map(name => `
+        <div class="kpi ${name}">
+          <div class="kpi-label">${name}</div>
+          <div class="kpi-value">${esc(v[name] ?? 0)}</div>
+        </div>`).join("");
+
+      const skills = (data.skills || []).slice().sort((a, b) => {
+        const cv = cmpVerdict(a.verdict, b.verdict);
+        if (cv !== 0) return cv;
+        const ar = (a.scanners && a.scanners.skillspector && a.scanners.skillspector.risk_score) || 0;
+        const br = (b.scanners && b.scanners.skillspector && b.scanners.skillspector.risk_score) || 0;
+        if (br !== ar) return br - ar;
+        return (a.namespace + "/" + a.slug).localeCompare(b.namespace + "/" + b.slug);
+      });
+
+      const wrap = document.getElementById("skills-wrap");
+      if (skills.length === 0) {
+        wrap.innerHTML = `<div class="placeholder">No skills in this report.</div>`;
+        return;
+      }
+      const rows = skills.map((s, i) => renderSkillRow(s, i)).join("");
+      wrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Skill</th>
+              <th>Verdict</th>
+              <th>Risk</th>
+              <th>Severity</th>
+              <th>Findings</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+
+      wrap.addEventListener("click", (ev) => {
+        const tr = ev.target.closest("tr.skill-row");
+        if (!tr) return;
+        const id = tr.dataset.id;
+        const detail = wrap.querySelector(`tr.skill-detail[data-id="${id}"]`);
+        if (detail) detail.classList.toggle("hidden");
+      });
+    }
+
+    function renderSkillRow(skill, i) {
+      const id = `row-${i}`;
+      const ss = (skill.scanners && skill.scanners.skillspector) || {};
+      const risk = ss.risk_score ?? 0;
+      const sev = ss.risk_severity || "info";
+      const findings = ss.findings_by_rule || [];
+      const findCount = Object.values(ss.findings_by_severity || {}).reduce((a, b) => a + b, 0);
+      const findSummary = findCount === 0
+        ? `<span class="mono" style="color:var(--text-subtle)">none</span>`
+        : `<span class="mono">${findCount}</span>`;
+      const skillCell = `<div><div><strong>${esc(skill.namespace)}/${esc(skill.slug)}</strong></div>` +
+        (skill.skill_path ? `<div class="src">${esc(skill.skill_path)}</div>` : "") + `</div>`;
+      const srcHref = repoUrl(skill.source_repo, skill.source_ref, skill.skill_path);
+      const srcLabel = `${skill.source_repo}@${truncSha(skill.source_sha) || skill.source_ref}`;
+      const riskBar = `
+        <div class="risk">
+          <div class="risk-bar"><span class="${esc(skill.verdict)}" style="width:${Math.max(2, Math.min(100, risk))}%"></span></div>
+          <span>${esc(risk)}</span>
+        </div>`;
+      const main = `
+        <tr class="skill-row" data-id="${id}">
+          <td>${skillCell}</td>
+          <td><span class="pill ${esc(skill.verdict)}">${esc(skill.verdict)}</span></td>
+          <td>${riskBar}</td>
+          <td><span class="mono">${esc(sev)}</span></td>
+          <td>${findSummary}</td>
+          <td class="src"><a href="${esc(srcHref)}" rel="noopener">${esc(srcLabel)}</a></td>
+        </tr>`;
+      const reasons = (skill.reasons && skill.reasons.length)
+        ? `<ul class="reasons">${skill.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>`
+        : `<div class="reasons">No flagged reasons.</div>`;
+      const findingsList = findings.length
+        ? findings.slice(0, 8).map(f => `<li><span class="lbl">${esc(f.id)}</span> <span class="val">${esc(f.severity)} &times; ${esc(f.count)}</span></li>`).join("")
+        : `<li><span class="lbl" style="color:var(--text-subtle)">no findings</span></li>`;
+      const bySev = ss.findings_by_severity || {};
+      const sevList = Object.keys(bySev).length
+        ? Object.entries(bySev).sort().map(([k, v]) => `<li><span class="lbl">${esc(k)}</span> <span class="val">${esc(v)}</span></li>`).join("")
+        : `<li><span class="lbl" style="color:var(--text-subtle)">no findings</span></li>`;
+      const artifacts = skill.artifacts || {};
+      const detail = `
+        <tr class="skill-detail hidden" data-id="${id}">
+          <td colspan="6">
+            <div class="detail-grid">
+              <div class="detail-block">
+                <h4>Reasons</h4>
+                ${reasons}
+              </div>
+              <div class="detail-block">
+                <h4>SkillSpector recommendation</h4>
+                <div class="mono" style="font-size:12px">${esc(ss.risk_recommendation || "n/a")}</div>
+              </div>
+              <div class="detail-block">
+                <h4>Findings by rule</h4>
+                <ul>${findingsList}</ul>
+              </div>
+              <div class="detail-block">
+                <h4>Findings by severity</h4>
+                <ul>${sevList}</ul>
+              </div>
+              ${artifacts.skillspector_json || artifacts.skillspector_sarif ? `
+              <div class="detail-block" style="grid-column: 1 / -1">
+                <h4>Raw scanner artifacts</h4>
+                <ul>
+                  ${artifacts.skillspector_json ? `<li><span class="lbl">JSON</span> <span class="val">${esc(artifacts.skillspector_json)}</span></li>` : ""}
+                  ${artifacts.skillspector_sarif ? `<li><span class="lbl">SARIF</span> <span class="val">${esc(artifacts.skillspector_sarif)}</span></li>` : ""}
+                </ul>
+              </div>` : ""}
+            </div>
+          </td>
+        </tr>`;
+      return main + detail;
+    }
+  </script>
+</body>
+</html>

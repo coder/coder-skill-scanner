@@ -253,19 +253,10 @@ jobs:
           mkdir -p pages/history
           cp latest.json pages/latest.json
           cp schema/report.schema.json pages/schema.json
+          cp web/index.html pages/index.html
           stamp="$(date -u +%Y-%m-%dT%H-%MZ)"
           mkdir -p "pages/history/$(date -u +%Y-%m-%d)"
           cp latest.json "pages/history/$(date -u +%Y-%m-%d)/${stamp}.json"
-          cat > pages/index.html <<'HTML'
-          <!doctype html><meta charset="utf-8"><title>coder-skill-scanner</title>
-          <h1>coder-skill-scanner</h1>
-          <p>Public scan reports for the Coder registry.</p>
-          <ul>
-            <li><a href="latest.json">latest.json</a></li>
-            <li><a href="schema.json">schema.json</a> (v1)</li>
-            <li><a href="history/">history/</a></li>
-          </ul>
-          HTML
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
