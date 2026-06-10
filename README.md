@@ -18,8 +18,8 @@ Every 6 hours, the scheduled workflow in this repo:
    for archival.
 
 The public site is the same React app that registry-server hosts at
-`registry.coder.com`, scoped down to scan results. Same Vite + Tailwind
-+ Radix + react-router-dom + tanstack-query stack.
+`registry.coder.com`, scoped down to scan results. Same Vite, Tailwind,
+Radix, react-router-dom, and tanstack-query stack.
 
 The registry site reads the public report through a small proxy endpoint
 in `coder/registry-server` (separate PR) and shows a per-skill badge.
@@ -29,13 +29,13 @@ The registry's deploys are not gated on the scan result.
 
 Stable URLs, no auth required:
 
-- Public site: `https://coder.github.io/coder-skill-scanner/`
-- Per-skill detail: `https://coder.github.io/coder-skill-scanner/skills/<namespace>/<slug>`
-- Run history: `https://coder.github.io/coder-skill-scanner/history`
-- CDN-cached JSON: `https://coder.github.io/coder-skill-scanner/latest.json`
-- Tagged release: `https://github.com/coder/coder-skill-scanner/releases/latest/download/latest.json`
-- Schema: `https://coder.github.io/coder-skill-scanner/schema.json` (v1)
-- Per-scan history (JSON): `https://coder.github.io/coder-skill-scanner/history/index.json`
++ Public site: `https://coder.github.io/coder-skill-scanner/`
++ Per-skill detail: `https://coder.github.io/coder-skill-scanner/skills/<namespace>/<slug>`
++ Run history: `https://coder.github.io/coder-skill-scanner/history`
++ CDN-cached JSON: `https://coder.github.io/coder-skill-scanner/latest.json`
++ Tagged release: `https://github.com/coder/coder-skill-scanner/releases/latest/download/latest.json`
++ Schema: `https://coder.github.io/coder-skill-scanner/schema.json` (v1)
++ Per-scan history (JSON): `https://coder.github.io/coder-skill-scanner/history/index.json`
 
 ## Running locally
 
