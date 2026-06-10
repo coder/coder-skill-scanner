@@ -11,6 +11,7 @@ import { MetaStrip } from "../components/MetaStrip/MetaStrip";
 import { RiskBar } from "../components/RiskBar/RiskBar";
 import { RuleBadge } from "../components/RuleBadge/RuleBadge";
 import { Sparkline } from "../components/Sparkline/Sparkline";
+import { VerdictExplanation } from "../components/VerdictExplanation/VerdictExplanation";
 import { VerdictPill } from "../components/VerdictPill/VerdictPill";
 import { useHistoryIndex, useLatestReport } from "../lib/query";
 import { sourceRepoUrl, truncSha } from "../lib/format";
@@ -99,7 +100,6 @@ export const SkillDetailPage: FC = () => {
     skill.source_ref,
     skill.skill_path,
   );
-  const reasons = skill.reasons ?? [];
 
   return (
     <div className="space-y-5">
@@ -172,20 +172,9 @@ export const SkillDetailPage: FC = () => {
         <Section
           title="Reasons"
           icon={<ShieldAlertIcon className="size-3.5" />}
+          className="sm:col-span-2"
         >
-          {reasons.length === 0 ? (
-            <div className="text-xs text-coder-neutral-500">
-              No flagged reasons.
-            </div>
-          ) : (
-            <ul className="space-y-1 text-sm">
-              {reasons.map((r, i) => (
-                <li key={i} className="text-coder-neutral-200">
-                  {r}
-                </li>
-              ))}
-            </ul>
-          )}
+          <VerdictExplanation skill={skill} />
         </Section>
 
         <Section title="Source">
@@ -252,29 +241,24 @@ export const SkillDetailPage: FC = () => {
           )}
         </Section>
 
-        <Section title="Findings by rule">
-          {findingsByRule.length === 0 ? (
-            <div className="text-xs text-coder-neutral-500">
-              No rules triggered.
+        {findingsByRule.length > 0 && (
+          <Section title="Rules triggered" className="sm:col-span-2">
+            <div className="flex flex-wrap gap-1.5">
+              {findingsByRule.map((f) => (
+                <RuleBadge
+                  key={f.id}
+                  id={f.id}
+                  severity={f.severity}
+                  count={f.count}
+                />
+              ))}
             </div>
-          ) : (
-            <>
-              <div className="flex flex-wrap gap-1.5">
-                {findingsByRule.map((f) => (
-                  <RuleBadge
-                    key={f.id}
-                    id={f.id}
-                    severity={f.severity}
-                    count={f.count}
-                  />
-                ))}
-              </div>
-              <div className="mt-2 text-[11px] text-coder-neutral-500">
-                Hover or focus a badge to read the rule description.
-              </div>
-            </>
-          )}
-        </Section>
+            <div className="mt-2 text-[11px] text-coder-neutral-500">
+              Hover or focus a badge for the rule description; see the
+              Reasons section above for the narrative breakdown.
+            </div>
+          </Section>
+        )}
 
         {(skill.artifacts?.skillspector_json ||
           skill.artifacts?.skillspector_sarif) && (
