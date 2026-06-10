@@ -8,8 +8,10 @@ directly.
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -70,6 +72,8 @@ def enumerate_cmd(config_path: Path, clone_dir: Path | None, github_output: bool
         repo = rr.get("repo", "registry")
         ref = rr.get("ref", "main")
         clone_dir = Path(tempfile.mkdtemp(prefix="catalogue-"))
+        # Ensure the temp clone is removed on normal exit and on errors.
+        atexit.register(shutil.rmtree, clone_dir, ignore_errors=True)
         url = f"https://github.com/{owner}/{repo}.git"
         subprocess.run(
             ["git", "clone", "--depth=1", "--branch", ref, "--single-branch", url, str(clone_dir)],

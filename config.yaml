@@ -33,9 +33,11 @@ catalogue:
 scanners:
   skillspector:
     enabled: true
-    # Pin by commit SHA. Dependabot bumps this through pyproject.toml's
-    # pip ecosystem; we mirror the same pin here so the workflow uses
-    # the same version the tests cover.
+    # Pin by commit SHA. Bumped manually via PR; the workflow's pip
+    # install reads this same pin so contributors do not have to keep
+    # the version in two places. Dependabot does not parse this file,
+    # so a bumper bot lives outside the loop until the upstream
+    # publishes to PyPI and the pin can move into pyproject.toml.
     pin: "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@2eb844780ab163f01468ecf142c40a2ec0fcaec0"
     flags:
       - "--no-llm"

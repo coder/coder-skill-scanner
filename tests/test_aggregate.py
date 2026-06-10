@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 from scanner import aggregate
@@ -114,7 +115,7 @@ def test_aggregate_validate_rejects_unknown_field():
     )
     report["bogus_extra_field"] = "should not be allowed"
 
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(jsonschema.exceptions.ValidationError):
         aggregate.validate_report(report, schema)
 
 
