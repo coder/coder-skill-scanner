@@ -17,6 +17,7 @@ interface KPIProps {
 }
 
 export const KPI: FC<KPIProps> = ({ label, value, verdict, hint }) => {
+  const isZero = typeof value === "number" && value === 0;
   return (
     <div
       className={cn(
@@ -28,7 +29,15 @@ export const KPI: FC<KPIProps> = ({ label, value, verdict, hint }) => {
       <div className="text-[11px] font-medium uppercase tracking-wider text-coder-neutral-400">
         {label}
       </div>
-      <div className="mt-1 font-mono text-3xl font-semibold tabular-nums text-coder-neutral-100">
+      <div
+        className={cn(
+          "mt-1 font-mono text-3xl font-semibold tabular-nums",
+          // A loud "0" reads as a failure on cards where zero is good
+          // news (no malicious findings). Mute zeros so non-zero values
+          // do the visual work.
+          isZero ? "text-coder-neutral-500" : "text-coder-neutral-100",
+        )}
+      >
         {value}
       </div>
       {hint && (

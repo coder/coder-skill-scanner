@@ -4,6 +4,7 @@ import { KPI } from "../components/KPI/KPI";
 import { MetaStrip } from "../components/MetaStrip/MetaStrip";
 import { SkillTable } from "../components/SkillTable/SkillTable";
 import { useLatestReport } from "../lib/query";
+import { usePageTitle } from "../lib/usePageTitle";
 import { type Verdict, type VerdictCounts, VERDICTS } from "../types/report";
 
 const VERDICT_HINTS: Record<Verdict, string> = {
@@ -24,6 +25,8 @@ function counts(input: Partial<VerdictCounts> | undefined): VerdictCounts {
 
 export const OverviewPage: FC = () => {
   const { data, isLoading, error } = useLatestReport();
+
+  usePageTitle();
 
   if (isLoading) return <LoadingState />;
   if (error || !data) {

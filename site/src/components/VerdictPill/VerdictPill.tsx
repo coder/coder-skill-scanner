@@ -32,6 +32,9 @@ export const VerdictPill: FC<VerdictPillProps> = ({
   size = "md",
   className,
 }) => {
+  // The large size carries the verdict at the top of the skill detail
+  // header; title-case reads as a label rather than a noun-in-a-sentence.
+  const label = size === "lg" ? capitalize(verdict) : verdict;
   return (
     <span
       className={cn(
@@ -45,7 +48,12 @@ export const VerdictPill: FC<VerdictPillProps> = ({
         aria-hidden
         className="inline-block size-1.5 rounded-full bg-current"
       />
-      {verdict}
+      {label}
     </span>
   );
 };
+
+function capitalize(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

@@ -73,6 +73,7 @@ export const RuleBadge: FC<RuleBadgeProps> = ({
           className={cn(
             "inline-flex items-center gap-1.5 rounded-md border border-coder-smoke bg-coder-smoke/30 px-2 py-0.5 text-xs",
             "transition-colors hover:border-coder-smoke-lighter hover:bg-coder-smoke/60",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coder-sky focus-visible:ring-offset-1 focus-visible:ring-offset-coder-cinder",
             className,
           )}
           tabIndex={0}

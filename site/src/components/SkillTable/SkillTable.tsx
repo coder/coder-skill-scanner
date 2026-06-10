@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRightIcon } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { sourceRepoUrl, truncSha } from "../../lib/format";
-import { type SkillEntry, type Verdict, VERDICTS } from "../../types/report";
+import { type SkillEntry, type Verdict } from "../../types/report";
 import { VerdictPill } from "../VerdictPill/VerdictPill";
 import { RiskBar } from "../RiskBar/RiskBar";
 
@@ -14,8 +14,12 @@ interface SkillTableProps {
 }
 
 function verdictRank(v: Verdict): number {
-  const i = VERDICTS.indexOf(v);
-  return i === -1 ? VERDICTS.length : i;
+  // Severity-descending: most-attention-needed at the top of the table.
+  // Catalogue drift ("unknown") ranks above clean because "we don't know"
+  // is more interesting than "we checked and it's fine".
+  const ORDER: Verdict[] = ["malicious", "suspicious", "unknown", "clean"];
+  const i = ORDER.indexOf(v);
+  return i === -1 ? ORDER.length : i;
 }
 
 function sortSkills(skills: SkillEntry[]): SkillEntry[] {
@@ -27,6 +31,19 @@ function sortSkills(skills: SkillEntry[]): SkillEntry[] {
     if (br !== ar) return br - ar;
     return `${a.namespace}/${a.slug}`.localeCompare(`${b.namespace}/${b.slug}`);
   });
+}
+
+const SEVERITY_TONE: Record<string, string> = {
+  critical: "text-verdict-malicious",
+  high: "text-verdict-malicious",
+  medium: "text-verdict-suspicious",
+  low: "text-coder-neutral-300",
+  info: "text-coder-neutral-500",
+};
+
+function severityClass(sev?: string): string {
+  if (!sev) return "text-coder-neutral-500";
+  return SEVERITY_TONE[sev.toLowerCase()] ?? "text-coder-neutral-400";
 }
 
 export const SkillTable: FC<SkillTableProps> = ({
@@ -59,7 +76,9 @@ export const SkillTable: FC<SkillTableProps> = ({
             <th className="px-4 py-3 text-left font-medium">Risk</th>
             <th className="px-4 py-3 text-left font-medium">Severity</th>
             <th className="px-4 py-3 text-left font-medium">Findings</th>
-            <th className="px-4 py-3 text-left font-medium">Source</th>
+            <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
+              Source
+            </th>
             <th className="px-4 py-3 text-right font-medium" />
           </tr>
         </thead>
@@ -101,7 +120,7 @@ export const SkillTable: FC<SkillTableProps> = ({
                 <td className="px-4 py-3">
                   <RiskBar score={risk} verdict={s.verdict} />
                 </td>
-                <td className="px-4 py-3 font-mono text-xs text-coder-neutral-300">
+                <td className={cn("px-4 py-3 font-mono text-xs", severityClass(sev))}>
                   {sev}
                 </td>
                 <td className="px-4 py-3 font-mono text-xs">
@@ -111,7 +130,7 @@ export const SkillTable: FC<SkillTableProps> = ({
                     <span className="text-coder-neutral-200">{findCount}</span>
                   )}
                 </td>
-                <td className="px-4 py-3 font-mono text-xs">
+                <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">
                   <a
                     href={srcHref}
                     rel="noopener noreferrer"

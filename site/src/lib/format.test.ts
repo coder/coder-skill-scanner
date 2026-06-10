@@ -14,7 +14,7 @@ describe("format", () => {
   });
 
   it("formats ISO timestamps in human-readable UTC", () => {
-    expect(formatUtc("2026-06-10T20:46:00Z")).toBe("2026-06-10 20:46:00Z");
+    expect(formatUtc("2026-06-10T20:46:00Z")).toBe("2026-06-10 20:46 UTC");
     expect(formatUtc(undefined)).toBe("unknown");
   });
 

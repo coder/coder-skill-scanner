@@ -4,9 +4,12 @@ import { ChevronRightIcon, ClockIcon } from "lucide-react";
 import { ErrorState, LoadingState } from "../components/State/State";
 import { useHistoryIndex } from "../lib/query";
 import { formatUtc, relativeTime } from "../lib/format";
+import { usePageTitle } from "../lib/usePageTitle";
 
 export const HistoryPage: FC = () => {
   const { data, isLoading, error } = useHistoryIndex();
+
+  usePageTitle("history");
 
   if (isLoading) return <LoadingState>Loading history index...</LoadingState>;
   if (error || !data) {

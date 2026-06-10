@@ -6,6 +6,7 @@ import { KPI } from "../components/KPI/KPI";
 import { MetaStrip } from "../components/MetaStrip/MetaStrip";
 import { SkillTable } from "../components/SkillTable/SkillTable";
 import { useHistoryIndex, useHistorySnapshot } from "../lib/query";
+import { usePageTitle } from "../lib/usePageTitle";
 import { type Verdict, type VerdictCounts, VERDICTS } from "../types/report";
 
 function counts(input: Partial<VerdictCounts> | undefined): VerdictCounts {
@@ -25,6 +26,8 @@ export const HistorySnapshotPage: FC = () => {
   const entry = index.data?.entries.find((e) => e.stamp === stamp);
   const snap = useHistorySnapshot(stamp, entry?.path);
 
+  usePageTitle(`snapshot ${stamp}`);
+
   if (index.isLoading || snap.isLoading) return <LoadingState />;
   if (index.error) return <ErrorState error={index.error} />;
   if (!entry) {
@@ -43,7 +46,18 @@ export const HistorySnapshotPage: FC = () => {
       </div>
     );
   }
-  if (snap.error || !snap.data) return <ErrorState error={snap.error} />;
+  if (snap.error || !snap.data) {
+    return (
+      <ErrorState error={snap.error}>
+        <div className="mt-2 text-xs text-coder-neutral-400">
+          Tried{" "}
+          <span className="font-mono text-coder-neutral-200">{entry.path}</span>
+          . The retention policy keeps snapshots for 30 days; older ones are
+          pruned from Pages but remain on the GitHub Release timeline.
+        </div>
+      </ErrorState>
+    );
+  }
 
   const v = counts(snap.data.summary?.verdicts);
   const total =
@@ -80,12 +94,18 @@ export const HistorySnapshotPage: FC = () => {
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-coder-neutral-400">
-          Skills ({total})
-        </h2>
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-coder-neutral-400">
+            Skills ({total})
+          </h2>
+          <p className="text-xs text-coder-neutral-500">
+            Skill links open the current detail page; the archived state
+            here is the table row.
+          </p>
+        </div>
         <SkillTable
           skills={snap.data.skills ?? []}
-          detailLinkBase={`/history/${stamp}/skills`}
+          detailLinkBase="/skills"
         />
       </section>
     </div>

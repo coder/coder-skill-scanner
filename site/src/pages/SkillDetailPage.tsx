@@ -15,6 +15,7 @@ import { VerdictExplanation } from "../components/VerdictExplanation/VerdictExpl
 import { VerdictPill } from "../components/VerdictPill/VerdictPill";
 import { useHistoryIndex, useLatestReport } from "../lib/query";
 import { sourceRepoUrl, truncSha } from "../lib/format";
+import { usePageTitle } from "../lib/usePageTitle";
 import type { SkillEntry } from "../types/report";
 import { useHistorySparkline } from "../lib/useHistorySparkline";
 
@@ -45,6 +46,11 @@ function findSkill(
   return skills?.find((s) => s.namespace === namespace && s.slug === slug);
 }
 
+function formatRecommendation(raw: string | undefined): string {
+  if (!raw) return "";
+  return raw.replace(/_/g, " ").toLowerCase();
+}
+
 export const SkillDetailPage: FC = () => {
   const params = useParams<{ namespace: string; slug: string }>();
   const namespace = params.namespace ?? "";
@@ -53,6 +59,8 @@ export const SkillDetailPage: FC = () => {
 
   const latest = useLatestReport();
   const historyIndex = useHistoryIndex();
+
+  usePageTitle(`${fullName} \u2014 skill scanner`);
 
   const sparklinePoints = useHistorySparkline(
     historyIndex.data,
@@ -130,25 +138,30 @@ export const SkillDetailPage: FC = () => {
           <div className="text-[11px] font-medium uppercase tracking-wider text-coder-neutral-400">
             Risk score
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-4">
+          <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+            <span className="font-mono text-3xl font-semibold tabular-nums text-coder-neutral-100">
+              {ss.risk_score ?? 0}
+              <span className="ml-1 text-base font-normal text-coder-neutral-500">
+                / 100
+              </span>
+            </span>
+            <span className="font-mono text-xs uppercase tracking-wider text-coder-neutral-400">
+              severity: {ss.risk_severity ?? "info"}
+            </span>
+          </div>
+          <div className="mt-3">
             <RiskBar
               score={ss.risk_score ?? 0}
               verdict={skill.verdict}
               size="md"
               showLabel={false}
             />
-            <span className="font-mono text-3xl font-semibold tabular-nums text-coder-neutral-100">
-              {ss.risk_score ?? 0}
-            </span>
-            <span className="font-mono text-xs text-coder-neutral-400">
-              severity: {ss.risk_severity ?? "info"}
-            </span>
           </div>
           {ss.risk_recommendation && (
             <div className="mt-3 text-xs text-coder-neutral-400">
               recommendation:{" "}
               <span className="font-mono text-coder-neutral-200">
-                {ss.risk_recommendation}
+                {formatRecommendation(ss.risk_recommendation)}
               </span>
             </div>
           )}
