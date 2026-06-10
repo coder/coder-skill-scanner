@@ -1,3 +1,5 @@
 # Pinned tools for `mise use` / `mise install` so local dev matches CI.
 [tools]
 python = "3.12"
+node = "22"
+pnpm = "10.33.2"

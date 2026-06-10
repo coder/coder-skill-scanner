@@ -7,8 +7,8 @@ __pycache__/
 .ruff_cache/
 .uv/
 
-# Scanner outputs
-pages/
+# Scanner outputs (top-level only; `site/src/pages/` is intentional)
+/pages/
 sarif/
 scans/
 out/

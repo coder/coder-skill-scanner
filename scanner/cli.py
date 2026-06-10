@@ -21,7 +21,7 @@ from typing import Any
 import click
 import yaml
 
-from . import __version__, aggregate, combine
+from . import __version__, aggregate, combine, history
 from . import enumerate as enumerate_mod
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -285,6 +285,31 @@ def validate_cmd(report_path: Path, schema_path: Path) -> None:
         click.echo(f"validation failed: {exc}", err=True)
         sys.exit(1)
     click.echo("ok")
+
+
+@main.command("index-history")
+@click.argument(
+    "history_dir",
+    type=click.Path(path_type=Path, file_okay=False),
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Where to write the index. Defaults to <history_dir>/index.json.",
+)
+def index_history_cmd(history_dir: Path, output: Path | None) -> None:
+    """Write a manifest of every snapshot under HISTORY_DIR.
+
+    The frontend reads this manifest to render the History page without
+    needing a directory listing on GitHub Pages.
+    """
+    manifest = history.index_history(history_dir)
+    payload = json.dumps(manifest, indent=2) + "\n"
+    target = output or (history_dir / "index.json")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(payload, encoding="utf-8")
+    click.echo(f"wrote {target} ({len(manifest['entries'])} snapshots)")
 
 
 if __name__ == "__main__":

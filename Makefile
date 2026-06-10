@@ -2,16 +2,27 @@ PYTHON ?= python3
 VENV   ?= .venv
 PIP    := $(VENV)/bin/pip
 PY     := $(VENV)/bin/python
+PNPM   ?= pnpm
 
-.PHONY: help install lint test schema enumerate clean
+.PHONY: help install lint test schema enumerate clean \
+        site-install site-lint site-test site-build site-dev site-storybook
 
 help:
-	@echo "Targets:"
-	@echo "  install  install the package and dev deps into $(VENV)"
-	@echo "  lint     ruff check"
-	@echo "  test     pytest"
-	@echo "  schema   validate report.schema.json is a valid JSON Schema"
-	@echo "  clean    remove $(VENV) and build artefacts"
+	@echo "Scanner targets:"
+	@echo "  install      install the Python package and dev deps into $(VENV)"
+	@echo "  lint         ruff check"
+	@echo "  test         pytest"
+	@echo "  schema       validate report.schema.json is a valid JSON Schema"
+	@echo "  enumerate    run scanner enumerate against the live catalogue"
+	@echo "  clean        remove $(VENV) and build artefacts"
+	@echo ""
+	@echo "Site targets (React app under site/):"
+	@echo "  site-install   pnpm install"
+	@echo "  site-lint      pnpm lint + lint-types"
+	@echo "  site-test      pnpm test:ci"
+	@echo "  site-build     pnpm build"
+	@echo "  site-dev       vite dev server on :5173 (proxies report data from :8765)"
+	@echo "  site-storybook storybook on :6006"
 
 $(VENV)/bin/activate:
 	$(PYTHON) -m venv $(VENV)
@@ -38,3 +49,24 @@ enumerate: install
 
 clean:
 	rm -rf $(VENV) build dist *.egg-info .pytest_cache .ruff_cache
+	rm -rf site/node_modules site/dist site/storybook-static
+
+# --- Site targets ---
+
+site-install:
+	cd site && $(PNPM) install
+
+site-lint:
+	cd site && $(PNPM) lint && $(PNPM) lint-types
+
+site-test:
+	cd site && $(PNPM) test:ci
+
+site-build:
+	cd site && $(PNPM) build
+
+site-dev:
+	cd site && $(PNPM) dev
+
+site-storybook:
+	cd site && $(PNPM) storybook

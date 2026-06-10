@@ -12,8 +12,14 @@ Every 6 hours, the scheduled workflow in this repo:
    `--no-llm` static mode over the upstream content.
 4. Builds a per-skill verdict (`clean`, `suspicious`, `malicious`,
    `unknown`) from `risk_score` plus the thresholds in `config.yaml`.
-5. Publishes a versioned report as a GitHub Release asset and a public
-   `latest.json` to GitHub Pages.
+5. Builds the React SPA in `site/` and ships it together with
+   `latest.json`, `schema.json`, and a rolling history of prior
+   snapshots to GitHub Pages. Also publishes a versioned GitHub Release
+   for archival.
+
+The public site is the same React app that registry-server hosts at
+`registry.coder.com`, scoped down to scan results. Same Vite + Tailwind
++ Radix + react-router-dom + tanstack-query stack.
 
 The registry site reads the public report through a small proxy endpoint
 in `coder/registry-server` (separate PR) and shows a per-skill badge.
@@ -23,15 +29,17 @@ The registry's deploys are not gated on the scan result.
 
 Stable URLs, no auth required:
 
+- Public site: `https://coder.github.io/coder-skill-scanner/`
+- Per-skill detail: `https://coder.github.io/coder-skill-scanner/skills/<namespace>/<slug>`
+- Run history: `https://coder.github.io/coder-skill-scanner/history`
 - CDN-cached JSON: `https://coder.github.io/coder-skill-scanner/latest.json`
 - Tagged release: `https://github.com/coder/coder-skill-scanner/releases/latest/download/latest.json`
 - Schema: `https://coder.github.io/coder-skill-scanner/schema.json` (v1)
-- Per-scan history: `https://coder.github.io/coder-skill-scanner/history/`
+- Per-scan history (JSON): `https://coder.github.io/coder-skill-scanner/history/index.json`
 
 ## Running locally
 
-Requires Python 3.12+ and `git`. `mise.toml` pins the right Python if you
-use `mise`.
+Requires Python 3.12+, Node 22+ (via `mise`), pnpm, and `git`.
 
 ```bash
 make install   # creates .venv, installs scanner + dev deps
@@ -40,7 +48,17 @@ make schema    # validate report schema is a valid JSON Schema
 
 # Smoke-test the enumerator against a local catalogue checkout:
 .venv/bin/scanner enumerate --clone-dir /path/to/coder-registry
+
+# Run the React site against a local pages tree. In two terminals:
+make site-install
+cd /path/to/pages && python3 -m http.server 8765   # serve scanner output
+make site-dev                                       # vite proxies :5173 -> :8765
 ```
+
+Vite's dev proxy (see `site/vite.config.ts`) forwards `latest.json`,
+`schema.json`, and `history/*.json` to the static server, so the React
+app sees real scanner output without CORS shenanigans. SPA routes such
+as `/skills/coder/setup` stay client-side.
 
 ## Repo layout
 
@@ -48,24 +66,26 @@ make schema    # validate report schema is a valid JSON Schema
 .
 |-- config.yaml                # the only user-facing knob
 |-- schema/report.schema.json  # v1 report contract
-|-- scanner/                   # Python module (CLI + enumerate + combine + aggregate)
+|-- scanner/                   # Python module (CLI + enumerate + combine + aggregate + history)
 |-- tests/                     # pytest, no on-disk fixtures
+|-- site/                      # React SPA (Vite + Tailwind + Radix + react-router-dom)
 |-- pyproject.toml
 |-- Makefile
-|-- mise.toml                  # pinned Python version
+|-- mise.toml                  # pinned Python + Node versions
 |-- AGENTS.md                  # contributor + agent conventions
 `-- .github/
     |-- workflows/
-    |   |-- ci.yaml            # validate config + schema + ruff + pytest
-    |   |-- scan.yaml          # the scheduled scanner
+    |   |-- ci.yaml            # validate config + schema + ruff + pytest + site lint/test/build
+    |   |-- scan.yaml          # the scheduled scanner; also builds and publishes the SPA
     |   `-- prune.yaml         # weekly release retention pruner
     |-- ISSUE_TEMPLATE/
     |   `-- scanner-down.md    # single rolling tracker
     `-- dependabot.yml         # weekly pip + github-actions bumps
 ```
 
-No `scripts/` directory. No `testdata/` directory. Runtime data lives in
-Releases and Pages, not in the repo.
+No `scripts/` directory. No `testdata/` directory. No committed sample
+reports. Runtime data lives in workflow artifacts, Releases, and Pages,
+not in the repo.
 
 ## Forking for your own catalogue
 

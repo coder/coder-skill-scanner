@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    "Geist", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  /*
+   * Brand tokens, mirrored from coder/registry-server/cmd/main/site/src/styles.css.
+   * Keeping the same names so muscle memory carries across.
+   */
+  --color-coder-neutral-white: hsl(180deg, 0%, 100%);
+  --color-coder-neutral-black: hsl(180deg, 10%, 4%);
+  --color-coder-neutral-100: hsl(180deg, 0%, 96%);
+  --color-coder-neutral-200: hsl(180deg, 0%, 93%);
+  --color-coder-neutral-300: hsl(180deg, 0%, 90%);
+  --color-coder-neutral-400: hsl(180deg, 0%, 72%);
+  --color-coder-neutral-500: hsl(180deg, 0%, 54%);
+  --color-coder-neutral-600: hsl(180deg, 0%, 36%);
+
+  --color-coder-smoke: hsl(260deg, 6%, 19%);
+  --color-coder-smoke-lighter: hsl(260deg, 4%, 26%);
+  --color-coder-cinder: hsl(260deg, 6%, 10%);
+
+  --color-coder-sky: hsl(188deg, 75%, 80%);
+  --color-coder-glacier: hsl(210deg, 75%, 84%);
+  --color-coder-haze: hsl(247deg, 29%, 70%);
+  --color-coder-purple: hsl(269deg, 100%, 74%);
+  --color-coder-magenta: hsl(292deg, 100%, 78%);
+  --color-coder-ember: hsl(10, 100%, 70%);
+  --color-coder-amber: hsl(38deg, 91%, 58%);
+
+  /*
+   * Verdict semantic tokens. Map to the brand palette so the page reads
+   * "coder-themed" rather than generic stoplight.
+   */
+  --color-verdict-clean: hsl(150deg, 65%, 65%);
+  --color-verdict-clean-bg: hsl(150deg, 50%, 12%);
+  --color-verdict-suspicious: hsl(38deg, 91%, 65%);
+  --color-verdict-suspicious-bg: hsl(35deg, 55%, 12%);
+  --color-verdict-malicious: hsl(10deg, 100%, 70%);
+  --color-verdict-malicious-bg: hsl(8deg, 60%, 14%);
+  --color-verdict-unknown: hsl(260deg, 4%, 60%);
+  --color-verdict-unknown-bg: hsl(260deg, 6%, 14%);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: var(--font-sans);
+  }
+
+  code,
+  pre,
+  .mono {
+    font-family: var(--font-mono);
+  }
+
+  /* Coder-themed text selection. */
+  ::selection {
+    background: var(--color-coder-sky);
+    color: var(--color-coder-neutral-black);
+  }
+}
