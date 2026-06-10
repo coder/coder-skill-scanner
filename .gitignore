@@ -1,0 +1,31 @@
+# Python (added in PR 2 when scripts use venv)
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.uv/
+
+# Scanner outputs
+sarif/
+scans/
+out/
+*.sarif
+
+# Node tooling caches
+node_modules/
+.npm/
+.cache/
+
+# Editor and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+*.swp
+*.swo
+
+# Local agent overrides
+AGENTS.local.md
+.claude/

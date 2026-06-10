@@ -1,0 +1,9 @@
+# Ignore symlinks and license files.
+LICENSE
+
+# Ignore generated and temporary files.
+.venv/
+node_modules/
+sarif/
+scans/
+out/

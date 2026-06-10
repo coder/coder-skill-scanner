@@ -1,0 +1,8 @@
+# ShellCheck configuration for coder-skill-scanner.
+# https://www.shellcheck.net/wiki/
+
+# Default to bash.
+shell=bash
+
+# Enable all optional checks.
+enable=all

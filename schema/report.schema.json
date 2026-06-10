@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coder.github.io/coder-skill-scanner/schema/report.schema.json",
+  "title": "Coder Skill Scanner Report",
+  "description": "Versioned report shape produced by coder/coder-skill-scanner and consumed by coder/registry-server. Schema is v1; any breaking change cuts a parallel latest-v2.json with a coordinated proxy cutover.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "scanner_run",
+    "catalogue",
+    "scanners",
+    "summary",
+    "skills"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Major.minor.patch. Major bumps require a coordinated cutover."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp at which the report was assembled."
+    },
+    "scanner_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "repo", "workflow", "run_id", "run_url", "head_sha"],
+      "properties": {
+        "owner": { "type": "string" },
+        "repo": { "type": "string" },
+        "workflow": { "type": "string" },
+        "run_id": { "type": "integer", "minimum": 1 },
+        "run_url": { "type": "string", "format": "uri" },
+        "head_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "catalogue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "repo", "ref", "sha"],
+      "properties": {
+        "owner": { "type": "string" },
+        "repo": { "type": "string" },
+        "ref": { "type": "string" },
+        "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "scanners": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skillspector", "clamav"],
+      "properties": {
+        "skillspector": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version_pin", "args"],
+          "properties": {
+            "version_pin": { "type": "string" },
+            "args": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "clamav": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "signature_db_date"],
+          "properties": {
+            "version": { "type": "string" },
+            "signature_db_date": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespaces", "sources", "skills_scanned", "verdicts"],
+      "properties": {
+        "namespaces": { "type": "integer", "minimum": 0 },
+        "sources": { "type": "integer", "minimum": 0 },
+        "skills_scanned": { "type": "integer", "minimum": 0 },
+        "verdicts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["clean", "suspicious", "malicious", "unknown"],
+          "properties": {
+            "clean": { "type": "integer", "minimum": 0 },
+            "suspicious": { "type": "integer", "minimum": 0 },
+            "malicious": { "type": "integer", "minimum": 0 },
+            "unknown": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SkillReport" }
+    },
+    "catalogue_drift": {
+      "type": "array",
+      "description": "Slugs declared in the catalogue that do not exist upstream at scan time. Informational; does not block publish.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["namespace", "declared_slug", "source", "reason"],
+        "properties": {
+          "namespace": { "type": "string" },
+          "declared_slug": { "type": "string" },
+          "source": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "Verdict": {
+      "type": "string",
+      "enum": ["clean", "suspicious", "malicious", "unknown"]
+    },
+    "SkillReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "slug",
+        "source_repo",
+        "source_ref",
+        "source_sha",
+        "scanned_at",
+        "verdict",
+        "reasons",
+        "scanners"
+      ],
+      "properties": {
+        "namespace": { "type": "string" },
+        "slug": { "type": "string" },
+        "source_repo": { "type": "string" },
+        "source_ref": { "type": "string" },
+        "source_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "skill_path": { "type": "string" },
+        "scanned_at": { "type": "string", "format": "date-time" },
+        "verdict": { "$ref": "#/$defs/Verdict" },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "scanners": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["skillspector", "clamav"],
+          "properties": {
+            "skillspector": { "$ref": "#/$defs/SkillSpectorScanner" },
+            "clamav": { "$ref": "#/$defs/ClamAVScanner" }
+          }
+        },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "skillspector_sarif": { "type": "string", "format": "uri" },
+            "skillspector_json": { "type": "string", "format": "uri" },
+            "clamav_log": { "type": "string", "format": "uri" }
+          }
+        }
+      }
+    },
+    "SkillSpectorScanner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["crashed", "json_missing"],
+      "properties": {
+        "crashed": { "type": "boolean" },
+        "json_missing": { "type": "boolean" },
+        "risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "risk_severity": {
+          "type": "string",
+          "enum": ["info", "low", "medium", "high", "critical"]
+        },
+        "risk_recommendation": { "type": "string" },
+        "findings_by_severity": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "findings_by_rule": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "severity", "count"],
+            "properties": {
+              "id": { "type": "string" },
+              "severity": { "type": "string" },
+              "count": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "ClamAVScanner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["infected_files", "error_count", "signature_db_age_hours"],
+      "properties": {
+        "infected_files": { "type": "integer", "minimum": 0 },
+        "error_count": { "type": "integer", "minimum": 0 },
+        "signature_db_age_hours": { "type": "integer", "minimum": 0 },
+        "infections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "signature"],
+            "properties": {
+              "path": { "type": "string" },
+              "signature": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

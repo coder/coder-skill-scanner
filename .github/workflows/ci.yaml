@@ -1,0 +1,104 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  validate-config:
+    name: Validate config.yaml
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up yq
+        uses: mikefarah/yq@b534aa9ee5d38001fba3cd8fe254a037e4847b37 # v4.44.6
+      - name: Parse YAML
+        run: yq eval . config.yaml > /dev/null
+      - name: Required keys present
+        run: |
+          set -euo pipefail
+          required_keys=(
+            ".config_version"
+            ".catalogue.registry_repo.owner"
+            ".catalogue.registry_repo.repo"
+            ".catalogue.registry_repo.ref"
+            ".scanners.skillspector.pin"
+            ".scanners.clamav.apt_packages"
+            ".verdict.malicious_if"
+            ".verdict.suspicious_if"
+            ".publish.release.rolling_tag"
+            ".publish.pages.enabled"
+            ".schedule.cron"
+          )
+          missing=0
+          for key in "${required_keys[@]}"; do
+            value="$(yq eval "${key}" config.yaml)"
+            if [[ "${value}" == "null" ]]; then
+              echo "Missing required config key: ${key}" >&2
+              missing=1
+            fi
+          done
+          exit "${missing}"
+
+  validate-schema:
+    name: Validate report schema
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Install check-jsonschema
+        run: pip install "check-jsonschema==0.33.0"
+      - name: Validate schema is itself a valid JSON Schema
+        run: |
+          python -m json.tool schema/report.schema.json > /dev/null
+          check-jsonschema --check-metaschema schema/report.schema.json
+
+  lint-shell:
+    name: ShellCheck and prettier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: ShellCheck
+        run: |
+          shopt -s globstar nullglob
+          files=(scripts/**/*.sh)
+          if (( ${#files[@]} == 0 )); then
+            echo "No shell scripts to lint yet."
+            exit 0
+          fi
+          shellcheck "${files[@]}"
+
+  lint-markdown:
+    name: Markdownlint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version: "20"
+      - name: Run markdownlint-cli2
+        run: npx --yes markdownlint-cli2@0.18.1 "**/*.md" "!**/node_modules/**" "!LICENSE"
