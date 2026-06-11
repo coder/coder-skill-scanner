@@ -196,6 +196,49 @@ function slugifyCategory(name: string): string {
   return `cat-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
 }
 
+/**
+ * Estimate the rendered height of a CategoryCard so we can bin-pack
+ * categories into balanced columns. Values are in arbitrary units; only
+ * the relative size matters for the bin-packing. Header cost covers the
+ * card title and severity badges row; each rule adds a header row plus
+ * an estimated number of wrapped description lines.
+ */
+function estimateCardHeight(c: CategoryGroup): number {
+  let h = 50;
+  for (const r of c.rules) {
+    h += 28; // rule header (dot, ID, severity word, count)
+    const lines = Math.max(1, Math.ceil((r.description?.length ?? 0) / 60));
+    h += lines * 18 + 12; // description body + bottom padding
+  }
+  return h;
+}
+
+/**
+ * Greedy bin-pack: walk categories in their sorted order and place each
+ * into whichever column is currently shorter. The result preserves the
+ * severity-first ordering inside each column while keeping column
+ * heights close enough that the section does not look lopsided.
+ */
+function balanceIntoColumns(
+  categories: CategoryGroup[],
+): [CategoryGroup[], CategoryGroup[]] {
+  const left: CategoryGroup[] = [];
+  const right: CategoryGroup[] = [];
+  let lW = 0;
+  let rW = 0;
+  for (const cat of categories) {
+    const w = estimateCardHeight(cat);
+    if (lW <= rW) {
+      left.push(cat);
+      lW += w;
+    } else {
+      right.push(cat);
+      rW += w;
+    }
+  }
+  return [left, right];
+}
+
 interface SeverityBadgesProps {
   counts: Record<SeverityKey, number>;
 }
@@ -204,17 +247,21 @@ const SeverityBadges: FC<SeverityBadgesProps> = ({ counts }) => {
   const present = SEVERITY_ORDER.filter((s) => counts[s] > 0);
   if (present.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-wider">
+    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider">
       {present.map((sev) => (
         <span
           key={sev}
-          className={cn("inline-flex items-center gap-1", SEVERITY_TONE[sev].text)}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border border-coder-smoke bg-coder-cinder px-1.5 py-0.5",
+            SEVERITY_TONE[sev].text,
+          )}
         >
           <span
             aria-hidden
             className={cn("size-1.5 rounded-full", SEVERITY_TONE[sev].dot)}
           />
-          {counts[sev]} {sev}
+          <span className="tabular-nums">{counts[sev]}</span>
+          <span>{sev}</span>
         </span>
       ))}
     </div>
@@ -244,7 +291,11 @@ const JumpBar: FC<JumpBarProps> = ({ categories }) => (
           )}
         />
         <span>{cat.category}</span>
-        <span className="font-mono text-coder-neutral-500">
+        <span
+          aria-hidden
+          className="h-3 w-px bg-coder-smoke"
+        />
+        <span className="font-mono tabular-nums text-coder-neutral-500">
           {cat.totalCount}
         </span>
       </a>
@@ -261,14 +312,14 @@ const CategoryCard: FC<CategoryCardProps> = ({ group }) => {
   return (
     <article
       id={slugifyCategory(group.category)}
-      className="mb-3 break-inside-avoid overflow-hidden rounded-md border border-coder-smoke bg-coder-cinder/60"
+      className="break-inside-avoid overflow-hidden rounded-md border border-coder-smoke bg-coder-cinder/60"
     >
       <header className="flex items-stretch">
         <span
           aria-hidden
-          className={cn("w-1 shrink-0", accent.accent)}
+          className={cn("w-1.5 shrink-0", accent.accent)}
         />
-        <div className="flex flex-1 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2.5">
+        <div className="flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3 py-2.5">
           <h4 className="text-sm font-semibold text-coder-neutral-100">
             {group.category}
           </h4>
@@ -280,13 +331,10 @@ const CategoryCard: FC<CategoryCardProps> = ({ group }) => {
           const tone = SEVERITY_TONE[rule.severity];
           return (
             <li key={rule.id} className="space-y-1 px-3 py-2.5">
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <span
                   aria-hidden
-                  className={cn(
-                    "mb-px size-1.5 rounded-full self-center",
-                    tone.dot,
-                  )}
+                  className={cn("size-2 shrink-0 rounded-full", tone.dot)}
                 />
                 <span className="font-mono font-medium text-coder-neutral-100">
                   {rule.id}
@@ -339,6 +387,13 @@ export const VerdictExplanation: FC<VerdictExplanationProps> = ({
     [ss.findings_by_rule],
   );
   const totalFindings = categories.reduce((sum, c) => sum + c.totalCount, 0);
+
+  // Bin-pack into two height-balanced columns once per category set so
+  // the layout does not jump around as React re-renders.
+  const [leftColumn, rightColumn] = useMemo(
+    () => balanceIntoColumns(categories),
+    [categories],
+  );
 
   const threshold = thresholdSentence(
     skill.verdict,
@@ -396,14 +451,29 @@ export const VerdictExplanation: FC<VerdictExplanationProps> = ({
               scrolling top-to-bottom. */}
           {categories.length >= 4 && <JumpBar categories={categories} />}
 
-          {/* CSS multi-column layout: at md+ widths the cards flow into
-              two columns and `break-inside-avoid` keeps each category
-              card together. This collapses the previous tall list to
-              roughly half its height without losing any information. */}
-          <div className="md:columns-2 md:gap-4">
+          {/* Mobile: single column, preserves severity-first sort order. */}
+          <div className="space-y-3 md:hidden">
             {categories.map((cat) => (
               <CategoryCard key={cat.category} group={cat} />
             ))}
+          </div>
+
+          {/* Desktop: two columns, height-balanced via a greedy bin-pack
+              so the section does not look lopsided when categories have
+              wildly different rule counts and description lengths. CSS
+              multi-column auto-balancing chokes on `break-inside-avoid`
+              cards of varying size. */}
+          <div className="hidden gap-4 md:grid md:grid-cols-2">
+            <div className="space-y-3">
+              {leftColumn.map((cat) => (
+                <CategoryCard key={cat.category} group={cat} />
+              ))}
+            </div>
+            <div className="space-y-3">
+              {rightColumn.map((cat) => (
+                <CategoryCard key={cat.category} group={cat} />
+              ))}
+            </div>
           </div>
         </div>
       )}
