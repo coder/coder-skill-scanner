@@ -312,57 +312,61 @@ const CategoryCard: FC<CategoryCardProps> = ({ group }) => {
   return (
     <article
       id={slugifyCategory(group.category)}
-      className="break-inside-avoid overflow-hidden rounded-md border border-coder-smoke bg-coder-cinder/60"
+      className="flex break-inside-avoid overflow-hidden rounded-md border border-coder-smoke bg-coder-cinder/60"
     >
-      <header className="flex items-stretch">
-        <span
-          aria-hidden
-          className={cn("w-1.5 shrink-0", accent.accent)}
-        />
-        <div className="flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3 py-2.5">
+      {/* The accent strip lives at the article level so flex stretches
+          it to the full card height. Previously it lived inside the
+          header and stopped where the header ended, which read as a
+          decorative cap rather than a severity band. */}
+      <span
+        aria-hidden
+        className={cn("w-1.5 shrink-0", accent.accent)}
+      />
+      <div className="flex-1">
+        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3 py-2.5">
           <h4 className="text-sm font-semibold text-coder-neutral-100">
             {group.category}
           </h4>
           <SeverityBadges counts={group.bySeverity} />
-        </div>
-      </header>
-      <ul className="divide-y divide-coder-smoke/40">
-        {group.rules.map((rule) => {
-          const tone = SEVERITY_TONE[rule.severity];
-          return (
-            <li key={rule.id} className="space-y-1 px-3 py-2.5">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                <span
-                  aria-hidden
-                  className={cn("size-2 shrink-0 rounded-full", tone.dot)}
-                />
-                <span className="font-mono font-medium text-coder-neutral-100">
-                  {rule.id}
-                </span>
-                <span
-                  className={cn(
-                    "font-mono uppercase tracking-wide",
-                    tone.text,
-                  )}
-                >
-                  {rule.severity}
-                </span>
-                <span className="font-mono text-coder-neutral-500">
-                  {"\u00b7"} {rule.count}{" "}
-                  {rule.count === 1 ? "hit" : "hits"}
-                </span>
-              </div>
-              <p className="text-xs leading-relaxed text-coder-neutral-300">
-                {rule.description || (
-                  <span className="text-coder-neutral-500">
-                    (no description in the bundled rule catalogue)
+        </header>
+        <ul className="divide-y divide-coder-smoke/40 border-t border-coder-smoke/60">
+          {group.rules.map((rule) => {
+            const tone = SEVERITY_TONE[rule.severity];
+            return (
+              <li key={rule.id} className="space-y-1 px-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  <span
+                    aria-hidden
+                    className={cn("size-2 shrink-0 rounded-full", tone.dot)}
+                  />
+                  <span className="font-mono font-medium text-coder-neutral-100">
+                    {rule.id}
                   </span>
-                )}
-              </p>
-            </li>
-          );
-        })}
-      </ul>
+                  <span
+                    className={cn(
+                      "font-mono uppercase tracking-wide",
+                      tone.text,
+                    )}
+                  >
+                    {rule.severity}
+                  </span>
+                  <span className="font-mono text-coder-neutral-500">
+                    {"\u00b7"} {rule.count}{" "}
+                    {rule.count === 1 ? "hit" : "hits"}
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed text-coder-neutral-300">
+                  {rule.description || (
+                    <span className="text-coder-neutral-500">
+                      (no description in the bundled rule catalogue)
+                    </span>
+                  )}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </article>
   );
 };
