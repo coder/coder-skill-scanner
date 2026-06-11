@@ -50,35 +50,44 @@ function groupByCategory(findings: FindingByRule[]): CategoryGroup[] {
 
 const VERDICT_TONE: Record<
   Verdict,
-  { icon: typeof ShieldAlertIcon; chipClass: string; text: string }
+  {
+    icon: typeof ShieldAlertIcon;
+    chipClass: string;
+    label: string;
+    /** One-sentence narrative, no data restated. The Risk score panel
+     *  directly above the Reasons section already shows the score,
+     *  severity, and recommendation; this chip should interpret, not
+     *  restate. */
+    summary: string;
+  }
 > = {
   clean: {
     icon: CheckCircle2Icon,
     chipClass: "bg-verdict-clean-bg text-verdict-clean",
-    text: "passed every scanner without flagged findings",
+    label: "Clean",
+    summary: "SkillSpector found nothing here that needs human follow-up.",
   },
   suspicious: {
     icon: AlertTriangleIcon,
     chipClass: "bg-verdict-suspicious-bg text-verdict-suspicious",
-    text: "needs human review",
+    label: "Suspicious",
+    summary:
+      "SkillSpector flagged behaviors that warrant human review before installing.",
   },
   malicious: {
     icon: ShieldAlertIcon,
     chipClass: "bg-verdict-malicious-bg text-verdict-malicious",
-    text: "should not be installed",
+    label: "Malicious",
+    summary:
+      "SkillSpector flagged enough high-severity behaviors that this skill should not be installed.",
   },
   unknown: {
     icon: HelpCircleIcon,
     chipClass: "bg-verdict-unknown-bg text-verdict-unknown",
-    text: "could not be assessed in this run",
+    label: "Unknown",
+    summary: "SkillSpector did not produce a usable result for this skill.",
   },
 };
-
-function formatRecommendation(raw: string | undefined): string {
-  if (!raw) return "";
-  // SkillSpector emits values like "DO_NOT_INSTALL", "SAFE", "REVIEW".
-  return raw.replace(/_/g, " ").toLowerCase();
-}
 
 function thresholdSentence(
   verdict: Verdict,
@@ -87,13 +96,13 @@ function thresholdSentence(
   suspicious_at: number,
 ): string | null {
   if (verdict === "malicious") {
-    return `Risk score ${risk} is at or above the malicious threshold (${malicious_at}).`;
+    return `Score ${risk}/100 is at or above the malicious threshold of ${malicious_at}.`;
   }
   if (verdict === "suspicious") {
-    return `Risk score ${risk} is at or above the suspicious threshold (${suspicious_at}), but below the malicious cutoff (${malicious_at}).`;
+    return `Score ${risk}/100 sits in the suspicious band (${suspicious_at} to ${malicious_at - 1}); the malicious cutoff is ${malicious_at}.`;
   }
   if (verdict === "clean") {
-    return `Risk score ${risk} is below the suspicious cutoff (${suspicious_at}).`;
+    return `Score ${risk}/100 is below the suspicious cutoff of ${suspicious_at}.`;
   }
   return null;
 }
@@ -112,28 +121,23 @@ export const VerdictExplanation: FC<VerdictExplanationProps> = ({
   const Icon = tone.icon;
 
   const risk = ss.risk_score ?? 0;
-  const severity = ss.risk_severity ?? "info";
-  const recommendation = formatRecommendation(ss.risk_recommendation);
 
   const categories = useMemo(
     () => groupByCategory(ss.findings_by_rule ?? []),
     [ss.findings_by_rule],
   );
-  const totalFindings = categories.reduce(
-    (sum, c) => sum + c.totalCount,
-    0,
-  );
+  const totalFindings = categories.reduce((sum, c) => sum + c.totalCount, 0);
 
-  const headline = thresholdSentence(
+  const threshold = thresholdSentence(
     skill.verdict,
     risk,
     malicious_at,
     suspicious_at,
   );
 
-  // The reasons array from the scanner is short and machine-shaped. We show
-  // it under "Verdict triggers" so the source of truth stays visible but the
-  // narrative leads.
+  // The machine-shaped reason strings from scanner/verdict.py are the
+  // ground truth for the verdict decision. Tucked into a disclosure so
+  // they stay reachable for debugging without competing with the prose.
   const machineReasons = skill.reasons ?? [];
 
   return (
@@ -144,29 +148,15 @@ export const VerdictExplanation: FC<VerdictExplanationProps> = ({
           tone.chipClass,
         )}
       >
-        <Icon className="mt-0.5 size-4 shrink-0" />
-        <div className="text-sm leading-relaxed">
-          <span className="font-medium capitalize">{skill.verdict}.</span>{" "}
-          <span className="text-coder-neutral-200">
-            SkillSpector scored this skill {risk} (
-            <span className="font-mono">{severity}</span>) and says it{" "}
-            {tone.text}.
-            {recommendation && (
-              <>
-                {" "}
-                Its recommendation is{" "}
-                <span className="font-mono text-coder-neutral-100">
-                  {recommendation}
-                </span>
-                .
-              </>
-            )}
-          </span>
-        </div>
+        <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <p className="text-sm leading-relaxed">
+          <span className="font-medium">{tone.label}.</span>{" "}
+          <span className="text-coder-neutral-200">{tone.summary}</span>
+        </p>
       </div>
 
-      {headline && (
-        <p className="text-sm text-coder-neutral-300">{headline}</p>
+      {threshold && (
+        <p className="text-sm text-coder-neutral-300">{threshold}</p>
       )}
 
       {categories.length === 0 && skill.verdict === "clean" && (
@@ -179,45 +169,45 @@ export const VerdictExplanation: FC<VerdictExplanationProps> = ({
 
       {categories.length > 0 && (
         <div>
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-coder-neutral-400">
-            What SkillSpector found
-            <span className="ml-1.5 font-mono normal-case tracking-normal text-coder-neutral-500">
-              ({totalFindings} {totalFindings === 1 ? "finding" : "findings"} across{" "}
+          <div className="mb-3 flex flex-wrap items-baseline gap-x-2 text-[11px] font-medium uppercase tracking-wider text-coder-neutral-400">
+            <span>What SkillSpector found</span>
+            <span className="font-mono normal-case tracking-normal text-coder-neutral-500">
+              {"\u00b7"} {totalFindings}{" "}
+              {totalFindings === 1 ? "finding" : "findings"} across{" "}
               {categories.length}{" "}
-              {categories.length === 1 ? "category" : "categories"})
+              {categories.length === 1 ? "category" : "categories"}
             </span>
           </div>
-          <ul className="space-y-3">
+          <ul className="space-y-4">
             {categories.map((cat) => (
               <li key={cat.category}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="text-sm font-medium text-coder-neutral-100">
+                <div className="flex items-baseline justify-between gap-3 border-b border-coder-smoke/60 pb-1">
+                  <h4 className="text-sm font-medium text-coder-neutral-100">
                     {cat.category}
-                  </div>
-                  <div className="font-mono text-xs text-coder-neutral-500">
-                    {cat.totalCount}{" "}
-                    {cat.totalCount === 1 ? "finding" : "findings"}
-                  </div>
+                  </h4>
+                  <span className="font-mono text-xs tabular-nums text-coder-neutral-500">
+                    {cat.totalCount}
+                  </span>
                 </div>
-                <ul className="mt-1 space-y-1.5">
+                <ul className="mt-2 space-y-2.5">
                   {cat.rules.map((rule) => (
-                    <li
-                      key={rule.id}
-                      className="text-xs leading-relaxed text-coder-neutral-300"
-                    >
-                      <span className="font-mono font-medium text-coder-neutral-100">
-                        {rule.id}
-                      </span>{" "}
-                      <span className="font-mono text-coder-neutral-500">
-                        &times;{rule.count}
-                      </span>{" "}
-                      {rule.description ? (
-                        rule.description
-                      ) : (
-                        <span className="text-coder-neutral-500">
-                          (no description in the bundled catalogue)
+                    <li key={rule.id} className="space-y-0.5">
+                      <div className="flex items-baseline gap-2 text-xs">
+                        <span className="font-mono font-medium text-coder-neutral-100">
+                          {rule.id}
                         </span>
-                      )}
+                        <span className="font-mono text-coder-neutral-500">
+                          {"\u00b7"} {rule.count}{" "}
+                          {rule.count === 1 ? "hit" : "hits"}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-relaxed text-coder-neutral-300">
+                        {rule.description || (
+                          <span className="text-coder-neutral-500">
+                            (no description in the bundled rule catalogue)
+                          </span>
+                        )}
+                      </p>
                     </li>
                   ))}
                 </ul>
