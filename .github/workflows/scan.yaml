@@ -120,7 +120,7 @@ jobs:
             --skillspector-json out/skillspector.json \
             --output out/skill.json
       - name: Upload skill artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.1.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v5.1.0
         with:
           name: skill-${{ matrix.namespace }}-${{ matrix.slug }}
           path: out/
@@ -157,7 +157,7 @@ jobs:
         run: |
           python -c "import json; r=json.load(open('latest.json')); print(json.dumps(r['summary'], indent=2))"
       - name: Upload scan-index artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.1.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v5.1.0
         with:
           name: scan-index
           path: latest.json
