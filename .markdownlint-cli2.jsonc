@@ -1,9 +1,11 @@
-// Markdownlint configuration. Aligned with coder/registry's style.
+// markdownlint-cli2 configuration. Rule keys must nest under "config".
 {
-  "default": true,
-  "MD013": false,
-  "MD024": { "siblings_only": true },
-  "MD033": false,
-  "MD041": false,
-  "MD026": { "punctuation": ".,;:!" }
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD024": { "siblings_only": true },
+    "MD033": false,
+    "MD041": false,
+    "MD026": { "punctuation": ".,;:!" }
+  }
 }

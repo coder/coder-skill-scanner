@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <rect width="32" height="32" rx="7" fill="#0a0a0a"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" stroke="#3f3f46"/>
+  <!-- Shield silhouette in Coder sky. -->
+  <path
+    d="M16 5.5 7.5 8.5v6.7c0 4.7 3.4 9.1 8.5 11.3 5.1-2.2 8.5-6.6 8.5-11.3V8.5L16 5.5z"
+    fill="none"
+    stroke="#7dd3fc"
+    stroke-width="1.8"
+    stroke-linejoin="round"
+  />
+  <!-- Scan checkmark inside the shield. -->
+  <path
+    d="M11.5 16.2 14.8 19.5 20.5 12.5"
+    fill="none"
+    stroke="#7dd3fc"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

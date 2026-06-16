@@ -1,12 +1,14 @@
-# Python (added in PR 2 when scripts use venv)
+# Python tooling caches
 .venv/
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.ruff_cache/
 .uv/
 
-# Scanner outputs
+# Scanner outputs (top-level only; `site/src/pages/` is intentional)
+/pages/
 sarif/
 scans/
 out/

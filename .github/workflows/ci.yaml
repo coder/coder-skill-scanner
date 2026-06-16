@@ -32,9 +32,8 @@ jobs:
             ".catalogue.registry_repo.repo"
             ".catalogue.registry_repo.ref"
             ".scanners.skillspector.pin"
-            ".scanners.clamav.apt_packages"
-            ".verdict.malicious_if"
-            ".verdict.suspicious_if"
+            ".verdict.malicious_risk_score"
+            ".verdict.suspicious_risk_score"
             ".publish.release.rolling_tag"
             ".publish.pages.enabled"
             ".schedule.cron"
@@ -68,25 +67,26 @@ jobs:
           python -m json.tool schema/report.schema.json > /dev/null
           check-jsonschema --check-metaschema schema/report.schema.json
 
-  lint-shell:
-    name: ShellCheck and prettier
+  pytest:
+    name: pytest + ruff
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Install shellcheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
-      - name: ShellCheck
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Install
         run: |
-          shopt -s globstar nullglob
-          files=(scripts/**/*.sh)
-          if (( ${#files[@]} == 0 )); then
-            echo "No shell scripts to lint yet."
-            exit 0
-          fi
-          shellcheck "${files[@]}"
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: ruff
+        run: ruff check scanner tests
+      - name: pytest
+        run: pytest
 
   lint-markdown:
     name: Markdownlint
@@ -102,3 +102,41 @@ jobs:
           node-version: "20"
       - name: Run markdownlint-cli2
         run: npx --yes markdownlint-cli2@0.18.1 "**/*.md" "!**/node_modules/**" "!LICENSE"
+
+  site:
+    name: site (lint + types + test + build)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10.33.2
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: site/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Type-check
+        run: pnpm lint-types
+      - name: Test
+        run: pnpm test:ci
+      - name: Build
+        run: pnpm build
+      - name: Upload SPA build
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: site-dist
+          path: site/dist
+          retention-days: 7

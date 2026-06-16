@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" class="size-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Public security scan results for skills published in the Coder registry."
+    />
+    <title>Coder Skill Scanner</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <link href="./src/styles.css" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body class="size-full bg-coder-neutral-black text-coder-neutral-100">
+    <div id="root" class="size-full">
+      <noscript class="mx-auto block max-w-prose p-8">
+        The Coder Skill Scanner site uses JavaScript to render scan reports.
+        Please enable JavaScript, or open the
+        <a href="/latest.json">raw JSON report</a> directly.
+      </noscript>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

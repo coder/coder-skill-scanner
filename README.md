@@ -3,75 +3,129 @@
 Periodic, GitHub-Actions-as-SaaS security scanner for agent skills declared
 in the [Coder registry](https://github.com/coder/registry) catalogue.
 
-Every 6 hours, this repo's scheduled workflow:
+Every 6 hours, the scheduled workflow in this repo:
 
-1. Enumerates every skill declared in `coder/registry`.
+1. Enumerates every skill in `coder/registry` (both the in-tree
+   `.agents/skills/` format and the future external-sources format).
 2. Shallow-clones each source repo.
-3. Runs [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector)
-   (agentic risk, static mode) and [ClamAV](https://www.clamav.net)
-   (malware signatures) over the upstream content.
+3. Runs [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector) in
+   `--no-llm` static mode over the upstream content.
 4. Builds a per-skill verdict (`clean`, `suspicious`, `malicious`,
-   `unknown`) from the scanner outputs and the policy in `config.yaml`.
-5. Publishes a versioned report as a GitHub Release asset and a public
-   `latest.json` to GitHub Pages.
+   `unknown`) from `risk_score` plus the thresholds in `config.yaml`.
+5. Builds the React SPA in `site/` and ships it together with
+   `latest.json`, `schema.json`, and a rolling history of prior
+   snapshots to GitHub Pages. Also publishes a versioned GitHub Release
+   for archival.
+
+The public site is the same React app that registry-server hosts at
+`registry.coder.com`, scoped down to scan results. Same Vite, Tailwind,
+Radix, react-router-dom, and tanstack-query stack.
 
 The registry site reads the public report through a small proxy endpoint
-in `coder/registry-server` and shows a per-skill scan badge. The
-registry's deploys are not gated on the scan result; this is visibility,
-not enforcement.
+in `coder/registry-server` (separate PR) and shows a per-skill badge.
+The registry's deploys are not gated on the scan result.
 
 ## Reading the latest report
 
-Stable URLs (no auth required):
+Stable URLs, no auth required:
 
-- Public JSON (CDN-cached):
-  `https://coder.github.io/coder-skill-scanner/latest.json`
-- Tagged Release:
-  `https://github.com/coder/coder-skill-scanner/releases/latest/download/latest.json`
-- Per-scan history:
-  `https://coder.github.io/coder-skill-scanner/history/<date>/<time>.json`
++ Public site: `https://coder.github.io/coder-skill-scanner/`
++ Per-skill detail: `https://coder.github.io/coder-skill-scanner/skills/<namespace>/<slug>`
++ Run history: `https://coder.github.io/coder-skill-scanner/history`
++ CDN-cached JSON: `https://coder.github.io/coder-skill-scanner/latest.json`
++ Tagged release: `https://github.com/coder/coder-skill-scanner/releases/latest/download/latest.json`
++ Schema: `https://coder.github.io/coder-skill-scanner/schema.json` (v1)
++ Per-scan history (JSON): `https://coder.github.io/coder-skill-scanner/history/index.json`
 
-The schema is defined in `schema/report.schema.json` and versioned.
+## Running locally
 
-## Repository layout
+Requires Python 3.12+, Node 22+ (via `mise`), pnpm, and `git`.
+
+```bash
+make install   # creates .venv, installs scanner + dev deps
+make test      # ruff + pytest
+make schema    # validate report schema is a valid JSON Schema
+
+# Smoke-test the enumerator against a local catalogue checkout:
+.venv/bin/scanner enumerate --clone-dir /path/to/coder-registry
+
+# Run the React site against a local pages tree. In two terminals:
+make site-install
+cd /path/to/pages && python3 -m http.server 8765   # serve scanner output
+make site-dev                                       # vite proxies :5173 -> :8765
+```
+
+Vite's dev proxy (see `site/vite.config.ts`) forwards `latest.json`,
+`schema.json`, and `history/*.json` to the static server, so the React
+app sees real scanner output without CORS shenanigans. SPA routes such
+as `/skills/coder/setup` stay client-side.
+
+## Repo layout
 
 ```text
 .
-|-- .github/
-|   |-- workflows/
-|   |   `-- ci.yaml            # lint scripts + validate config + validate schema
-|   `-- ISSUE_TEMPLATE/
-|       `-- scanner-down.md
-|-- README.md
-|-- LICENSE                    # Apache-2.0
+|-- config.yaml                # the only user-facing knob
+|-- schema/report.schema.json  # v1 report contract
+|-- scanner/                   # Python module (CLI + enumerate + combine + aggregate + history)
+|-- tests/                     # pytest, no on-disk fixtures
+|-- site/                      # React SPA (Vite + Tailwind + Radix + react-router-dom)
+|-- pyproject.toml
+|-- Makefile
+|-- mise.toml                  # pinned Python + Node versions
 |-- AGENTS.md                  # contributor + agent conventions
-|-- config.yaml                # catalogue source, scanners, verdict policy
-|-- schema/
-|   `-- report.schema.json     # JSON Schema for latest.json
-|-- scripts/                   # populated in subsequent PRs
-`-- testdata/                  # fixtures for self-test
+`-- .github/
+    |-- workflows/
+    |   |-- ci.yaml            # validate config + schema + ruff + pytest + site lint/test/build
+    |   |-- scan.yaml          # the scheduled scanner; also builds and publishes the SPA
+    |   `-- prune.yaml         # weekly release retention pruner
+    |-- ISSUE_TEMPLATE/
+    |   `-- scanner-down.md    # single rolling tracker
+    `-- dependabot.yml         # weekly pip + github-actions bumps
 ```
 
-The scanner workflow itself (`scan.yaml`) is added in a follow-up PR; this
-initial commit is the contract and tooling skeleton.
+No `scripts/` directory. No `testdata/` directory. No committed sample
+reports. Runtime data lives in workflow artifacts, Releases, and Pages,
+not in the repo.
 
 ## Forking for your own catalogue
 
 This scanner is data-driven. To run it against a different registry:
 
 1. Fork `coder/coder-skill-scanner`.
-2. Edit `config.yaml` to point at your catalogue and pin the scanner
-   versions you want.
-3. Configure GitHub Pages on your fork.
-4. Enable Actions.
+2. Edit `config.yaml`'s `catalogue.registry_repo` block.
+3. Configure GitHub Pages on your fork (Settings, Pages, source:
+   "GitHub Actions").
+4. Set Actions workflow permissions to "Read and write" so the
+   publish-release job can create releases.
+5. Enable Actions.
 
 No source changes required for catalogue changes.
 
-## Status
+## Verdict policy
 
-Bootstrap. The scanner workflow lands in PR 2 (SkillSpector path), PR 3
-(ClamAV path), PR 4 (Pages + history pruner), PR 5 (external-sources
-catalogue format once `coder/registry-server#442` ships).
+Today's policy lives in `config.yaml`:
+
+```yaml
+verdict:
+  malicious_risk_score: 81
+  suspicious_risk_score: 51
+```
+
+SkillSpector's `risk_score` (0-100) is the only input. The thresholds
+are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands;
+[`docs/CALIBRATION.md`](./docs/CALIBRATION.md) walks through the
+evidence (SkillSpector source, the ClawHub paper, our in-tree
+catalogue) behind the chosen numbers.
+
+The architecture keeps room for additional scanners (gitleaks, Semgrep,
+VirusTotal Premium, etc.); adding one is a new module under `scanner/`,
+a new threshold field here, and a minor schema bump.
+
+## Failure tracking
+
+When any scheduled run fails, `JasonEtco/create-an-issue` opens or
+updates a single rolling tracker labelled `scanner-down`. If the
+`SLACK_WEBHOOK_URL` secret is set, a Slack alert is also posted.
 
 ## License
 
