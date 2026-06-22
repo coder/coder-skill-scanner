@@ -8,8 +8,10 @@ Every 6 hours, the scheduled workflow in this repo:
 1. Enumerates every skill in `coder/registry` (both the in-tree
    `.agents/skills/` format and the future external-sources format).
 2. Shallow-clones each source repo.
-3. Runs [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector) in
-   `--no-llm` static mode over the upstream content.
+3. Runs [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector) over
+   the upstream content. The scheduled scan uses LLM semantic analysis
+   when the credential secret is configured, and falls back to
+   `--no-llm` static-only mode otherwise.
 4. Builds a per-skill verdict (`clean`, `suspicious`, `malicious`,
    `unknown`) from `risk_score` plus the thresholds in `config.yaml`.
 5. Builds the React SPA in `site/` and ships it together with
@@ -60,6 +62,26 @@ Vite's dev proxy (see `site/vite.config.ts`) forwards `latest.json`,
 app sees real scanner output without CORS shenanigans. SPA routes such
 as `/skills/coder/setup` stay client-side.
 
+## One-time setup on the repo
+
+Three things have to be configured once on the GitHub repo before the
+scheduled scan publishes a useful result:
+
+1. **Settings > Pages**: set source to "GitHub Actions". The
+   `publish-pages` job in `scan.yaml` will fail until this is set.
+2. **Settings > Actions**: workflow permissions "Read and write" so
+   `publish-release` can create the rolling `latest` release.
+3. **Settings > Secrets and variables > Actions**: add the LLM
+   credential matching the provider in `config.yaml`'s
+   `scanners.skillspector.llm.provider`. For the default `nv_build`
+   provider this is `NVIDIA_INFERENCE_KEY` (sign up free at
+   [build.nvidia.com](https://build.nvidia.com)). Without the secret
+   the scan still runs, but SkillSpector falls back to
+   `--no-llm` static-only mode and precision drops from roughly 87%
+   to roughly 70%. See `docs/CALIBRATION.md` for the precision
+   discussion. The optional `SLACK_WEBHOOK_URL` secret enables the
+   `notify-slack-on-failure` job; without it that job is a no-op.
+
 ## Repo layout
 
 ```text
@@ -97,7 +119,10 @@ This scanner is data-driven. To run it against a different registry:
    "GitHub Actions").
 4. Set Actions workflow permissions to "Read and write" so the
    publish-release job can create releases.
-5. Enable Actions.
+5. Add the LLM credential secret matching your chosen provider
+   (see "One-time setup on the repo" above). Optional; static-only
+   mode works without it.
+6. Enable Actions.
 
 No source changes required for catalogue changes.
 
@@ -115,7 +140,8 @@ SkillSpector's `risk_score` (0-100) is the only input. The thresholds
 are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands;
 [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) walks through the
 evidence (SkillSpector source, the ClawHub paper, our in-tree
-catalogue) behind the chosen numbers.
+catalogue) behind the chosen numbers, and the LLM-on-vs-off precision
+discussion behind running the semantic pass on every scheduled scan.
 
 The architecture keeps room for additional scanners (gitleaks, Semgrep,
 VirusTotal Premium, etc.); adding one is a new module under `scanner/`,
