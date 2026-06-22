@@ -59,21 +59,23 @@ scanners:
     # Provider options and the env var SkillSpector consumes:
     #
     #   provider          env var(s)
-    #   nv_build          NVIDIA_INFERENCE_KEY            (free; build.nvidia.com)
-    #   openai            OPENAI_API_KEY                  (+ OPENAI_BASE_URL for AI gateways)
-    #   anthropic         ANTHROPIC_API_KEY
+    #   anthropic         ANTHROPIC_API_KEY               (api.anthropic.com)
     #   anthropic_proxy   ANTHROPIC_PROXY_API_KEY + ANTHROPIC_PROXY_ENDPOINT_URL
+    #   openai            OPENAI_API_KEY                  (+ OPENAI_BASE_URL for AI gateways)
+    #   nv_build          NVIDIA_INFERENCE_KEY            (free; build.nvidia.com)
     #
     # Changing provider also requires updating the env block in
     # .github/workflows/scan.yaml so the matching secret is wired in,
     # and adding the secret under Settings > Secrets and variables >
     # Actions.
     llm:
-      provider: nv_build
-      # Empty model uses the provider's bundled default. Override here
-      # to pin a specific revision (e.g. "claude-opus-4-6" for
-      # provider=anthropic).
-      model: ""
+      provider: anthropic
+      # SkillSpector's bundled default for the anthropic provider is
+      # claude-opus-4-6. Sonnet 4.6 is roughly 5x cheaper than Opus and
+      # is well-suited for the finding-classification task the LLM pass
+      # actually does, so it is the better cost/quality choice for
+      # periodic scanning. Override here to pin a different revision.
+      model: "claude-sonnet-4-6"
 
 # Per-skill verdict policy. v1 has one input (SkillSpector risk_score).
 # When more scanners join the pipeline we add new threshold fields here
