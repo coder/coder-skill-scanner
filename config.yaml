@@ -39,8 +39,41 @@ scanners:
     # so a bumper bot lives outside the loop until the upstream
     # publishes to PyPI and the pin can move into pyproject.toml.
     pin: "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@2eb844780ab163f01468ecf142c40a2ec0fcaec0"
-    flags:
-      - "--no-llm"
+    # Extra CLI flags passed to every SkillSpector invocation. Empty by
+    # default; the scan workflow appends --no-llm dynamically when the
+    # LLM credential secret is not set (see llm: block below). CI runs
+    # do not invoke SkillSpector live.
+    flags: []
+    # SkillSpector ships a two-stage analyser: fast static rules followed
+    # by an optional LLM semantic pass. The LLM pass lifts precision
+    # from roughly 70% to roughly 87% per upstream docs by filtering
+    # context-aware false positives, classifying intent on prompt
+    # injection patterns, and producing human-readable explanations.
+    #
+    # The scheduled scan reads the credential matching the provider
+    # below from a repository secret. When the secret is configured,
+    # LLM mode is on. When the secret is missing, the workflow falls
+    # back to --no-llm automatically so a fresh fork is never broken
+    # by an unset secret.
+    #
+    # Provider options and the env var SkillSpector consumes:
+    #
+    #   provider          env var(s)
+    #   nv_build          NVIDIA_INFERENCE_KEY            (free; build.nvidia.com)
+    #   openai            OPENAI_API_KEY                  (+ OPENAI_BASE_URL for AI gateways)
+    #   anthropic         ANTHROPIC_API_KEY
+    #   anthropic_proxy   ANTHROPIC_PROXY_API_KEY + ANTHROPIC_PROXY_ENDPOINT_URL
+    #
+    # Changing provider also requires updating the env block in
+    # .github/workflows/scan.yaml so the matching secret is wired in,
+    # and adding the secret under Settings > Secrets and variables >
+    # Actions.
+    llm:
+      provider: nv_build
+      # Empty model uses the provider's bundled default. Override here
+      # to pin a specific revision (e.g. "claude-opus-4-6" for
+      # provider=anthropic).
+      model: ""
 
 # Per-skill verdict policy. v1 has one input (SkillSpector risk_score).
 # When more scanners join the pipeline we add new threshold fields here
