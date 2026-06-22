@@ -73,10 +73,10 @@ scheduled scan publishes a useful result:
    `publish-release` can create the rolling `latest` release.
 3. **Settings > Secrets and variables > Actions**: add the LLM
    credential matching the provider in `config.yaml`'s
-   `scanners.skillspector.llm.provider`. For the default `nv_build`
-   provider this is `NVIDIA_INFERENCE_KEY` (sign up free at
-   [build.nvidia.com](https://build.nvidia.com)). Without the secret
-   the scan still runs, but SkillSpector falls back to
+   `scanners.skillspector.llm.provider`. For the default `anthropic`
+   provider this is `ANTHROPIC_API_KEY` (from
+   [console.anthropic.com](https://console.anthropic.com)). Without
+   the secret the scan still runs, but SkillSpector falls back to
    `--no-llm` static-only mode and precision drops from roughly 87%
    to roughly 70%. See `docs/CALIBRATION.md` for the precision
    discussion. The optional `SLACK_WEBHOOK_URL` secret enables the
