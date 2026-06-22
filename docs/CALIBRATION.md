@@ -99,6 +99,42 @@ verdict:
   This avoids broadcasting the ~half-of-catalogue base rate that
   ClawHub measured.
 
+## LLM semantic pass
+
+SkillSpector ships a two-stage analyser: fast static rules (the 64
+patterns SkillSpector documents) followed by an optional LLM semantic
+pass. Upstream's published precision numbers are:
+
+- `--no-llm` (static only): high recall, moderate precision (~70%).
+  False positives on context-sensitive patterns are common; for
+  example, EA2 ("autonomous decision making") fires on prose that
+  documents safeguards as well as prose that bypasses them.
+- Default (LLM on): ~87% precision. The LLM pass reads each finding's
+  surrounding context, classifies intent, filters context-aware false
+  positives, and writes a human-readable explanation that ships in the
+  per-finding output.
+
+The scheduled scan runs LLM mode when the workflow's chosen credential
+secret (`NVIDIA_INFERENCE_KEY` for the default `nv_build` provider) is
+configured. The fallback to `--no-llm` is automatic when the secret is
+missing, so an unset secret on a fresh fork degrades the scan rather
+than breaking it.
+
+The LLM pass does not affect the threshold math: SkillSpector's
+`risk_score` is still a 0-100 weighted sum of rule hits, and the
+51/81 cutoffs above still map directly to `HIGH` and `CRITICAL` bands.
+It does affect which findings reach the verdict: false positives that
+the LLM filters out no longer contribute to the score. Expect verdicts
+to move down (or stay the same) when LLM mode flips on, not up.
+
+For the five existing in-tree skills, the static-only scan placed
+`coder/setup` at 100 / `malicious`. With LLM mode on we expect the
+findings list to shrink (the EA2 prose hits and the asset-path MP2
+hits should be filtered) but the score will still be high. Reducing
+`coder/setup`'s verdict below `suspicious` requires the upcoming
+permissions-manifest layer (Phase 3 of the v3 plan), not the LLM pass
+alone.
+
 ## What we did not change (and why)
 
 - We did not raise `suspicious_risk_score` above `51`. SkillSpector
@@ -127,6 +163,9 @@ Re-run this analysis when any of:
   that shifts where its bands sit. The pinned commit in `config.yaml`
   protects us from drifting silently; a deliberate bump should walk
   through this doc.
+- The LLM provider changes (e.g., moving from `nv_build` to
+  `anthropic`). Different models filter differently; spot-check the
+  five in-tree skills before merging the provider swap.
 - We observe a real-world skill that lands in an obviously wrong
   bucket (false positive or false negative). Open a tracking issue,
   link it from this doc, and adjust with evidence in the next PR.
