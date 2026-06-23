@@ -39,65 +39,11 @@ scanners:
     # so a bumper bot lives outside the loop until the upstream
     # publishes to PyPI and the pin can move into pyproject.toml.
     pin: "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@2eb844780ab163f01468ecf142c40a2ec0fcaec0"
-    # Extra CLI flags passed to every SkillSpector invocation. Left
-    # empty so .github/workflows/scan.yaml can drive --no-llm
-    # dynamically based on whether the LLM credential secret is set
-    # (see contract under the llm: block below).
+    # Empty so .github/workflows/scan.yaml can append --no-llm
+    # dynamically based on whether the LLM credential secret is set.
     flags: []
-    # SkillSpector ships a two-stage analyser: fast static rules
-    # followed by an optional LLM semantic pass. Measured on the five
-    # in-tree skills, LLM mode dropped catalogue-wide findings from
-    # 25 to 2 and moved coder/setup from malicious to clean. See
-    # docs/CALIBRATION.md for the per-skill numbers and methodology.
-    #
-    # Contract with .github/workflows/scan.yaml: the workflow reads
-    # the credential matching the provider below from a repository
-    # secret. When the secret is set, LLM mode runs. When the secret
-    # is missing, the workflow appends --no-llm so a fresh fork is
-    # never broken by an unset secret.
-    #
-    # NOTE: scan.yaml in this branch still hardcodes --no-llm. The
-    # matching workflow edit is in this PR's description but is
-    # committed separately because the Coder Agents GitHub App on
-    # this repo currently lacks the `workflows: write` scope. After
-    # both land, the config and the workflow drive LLM mode together.
-    #
-    # Provider options:
-    #   provider   env var(s)                          endpoint
-    #   anthropic  ANTHROPIC_API_KEY                   api.anthropic.com
-    #   openai     OPENAI_API_KEY + OPENAI_BASE_URL    any OpenAI-compatible URL
-    #   nv_build   NVIDIA_INFERENCE_KEY                build.nvidia.com (free)
-    #
-    # Changing provider also requires updating the env block in
-    # .github/workflows/scan.yaml so the matching secret is wired in,
-    # and adding the secret under Settings > Secrets and variables >
-    # Actions.
     llm:
-      # Hits api.anthropic.com directly with an Anthropic API key (not
-      # routed through Coder's AI Gateway). aibridge was the original
-      # plan, but SkillSpector pipes every provider through
-      # langchain_openai.ChatOpenAI which hits `/v1/chat/completions`,
-      # and aibridge only mounts that path under `/openai`, not
-      # `/anthropic`. The `anthropic` provider in SkillSpector also
-      # hardcodes `https://api.anthropic.com/v1/` and ignores
-      # ANTHROPIC_BASE_URL, so aibridge cannot be steered into the
-      # Claude path today. This means the Anthropic API key is on a
-      # separate billing line from Coder usage.
       provider: anthropic
-      # claude-sonnet-4-6 is SkillSpector's own pick for the
-      # finding-classification task: it is the bundled default for
-      # the anthropic provider's `meta_analyzer` slot, which the
-      # provider docstring describes as "cheaper for the high-volume
-      # filter pass." SkillSpector's `DEFAULT_MODEL` is
-      # `claude-opus-4-6`, used for the deeper analyzer slots
-      # (~5x the per-token cost); the per-finding intent
-      # classification this scanner relies on does not need
-      # Opus-class reasoning. Bare alias rather than a dated suffix
-      # (the dated suffixes for the 4-6 series are not accepted as
-      # of June 2026; the bare alias is the canonical ID). Bump
-      # this string to `claude-opus-4-6`, `claude-opus-4-8`, or
-      # `claude-fable-5` if a higher tier is warranted; SkillSpector
-      # passes it directly to the Anthropic API.
       model: "claude-sonnet-4-6"
 
 # Per-skill verdict policy. v1 has one input (SkillSpector risk_score).

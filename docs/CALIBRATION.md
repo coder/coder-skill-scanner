@@ -155,13 +155,6 @@ secret is configured. The fallback to `--no-llm` is automatic when the
 secret is missing, so an unset secret on a fresh fork degrades the
 scan rather than breaking it.
 
-**Important caveat for this PR**: `.github/workflows/scan.yaml` in the
-current branch still hardcodes `--no-llm`. The matching workflow edit
-is in the PR description but is committed separately because the Coder
-Agents GitHub App on this repo currently lacks the `workflows: write`
-scope. The contract documented here only takes effect once that edit
-lands (or is pasted by a human with workflow write access).
-
 Provider is `anthropic` against `api.anthropic.com` directly, model
 `claude-sonnet-4-6`. The Anthropic API key is on a separate billing
 line from Coder usage because SkillSpector cannot be routed through

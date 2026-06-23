@@ -27,13 +27,6 @@ The registry site reads the public report through a small proxy endpoint
 in `coder/registry-server` (separate PR) and shows a per-skill badge.
 The registry's deploys are not gated on the scan result.
 
-> **Note on the LLM semantic pass.** Step 3's conditional-LLM behavior
-> requires the matching edit in `.github/workflows/scan.yaml`. That edit
-> is part of the same change that introduces this section in the README;
-> see the PR description for the diff. The current `scan.yaml` on this
-> branch still hardcodes `--no-llm`, so adding the secret alone has no
-> effect until the workflow edit also lands.
-
 ## Reading the latest report
 
 Stable URLs, no auth required:
@@ -90,16 +83,6 @@ scheduled scan publishes a useful result:
    `docs/CALIBRATION.md` for the measured before/after numbers. The
    optional `SLACK_WEBHOOK_URL` secret enables the
    `notify-slack-on-failure` job; without it that job is a no-op.
-
-> **Workflow file note**: enabling LLM mode also requires the matching
-> edit in `.github/workflows/scan.yaml` (it must export
-> `ANTHROPIC_API_KEY` into the SkillSpector step, set
-> `SKILLSPECTOR_PROVIDER=anthropic` and `SKILLSPECTOR_MODEL`, and
-> conditionally append `--no-llm` when the secret is missing). That
-> edit is part of the same change that introduces this section and
-> is documented in the PR description, but is committed separately
-> because the Coder Agents GitHub App on this repo currently lacks
-> the `workflows: write` scope.
 
 ## Repo layout
 
