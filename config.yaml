@@ -84,15 +84,21 @@ scanners:
       # Claude path today. This means the Anthropic API key is on a
       # separate billing line from Coder usage.
       provider: anthropic
-      # claude-sonnet-4-5 is the cost/quality sweet spot for
-      # SkillSpector's finding-classification work. SkillSpector's
-      # bundled default for the anthropic provider is
-      # `claude-opus-4-6`, which is ~5x the per-token cost; the
-      # finding-classification task does not need Opus-class
-      # reasoning. Bump to a newer Sonnet revision (or to Opus) by
-      # editing this string; SkillSpector passes it directly to the
-      # Anthropic API.
-      model: "claude-sonnet-4-5-20250929"
+      # claude-sonnet-4-6 is SkillSpector's own pick for the
+      # finding-classification task: it is the bundled default for
+      # the anthropic provider's `meta_analyzer` slot, which the
+      # provider docstring describes as "cheaper for the high-volume
+      # filter pass." SkillSpector's `DEFAULT_MODEL` is
+      # `claude-opus-4-6`, used for the deeper analyzer slots
+      # (~5x the per-token cost); the per-finding intent
+      # classification this scanner relies on does not need
+      # Opus-class reasoning. Bare alias rather than a dated suffix
+      # (the dated suffixes for the 4-6 series are not accepted as
+      # of June 2026; the bare alias is the canonical ID). Bump
+      # this string to `claude-opus-4-6`, `claude-opus-4-8`, or
+      # `claude-fable-5` if a higher tier is warranted; SkillSpector
+      # passes it directly to the Anthropic API.
+      model: "claude-sonnet-4-6"
 
 # Per-skill verdict policy. v1 has one input (SkillSpector risk_score).
 # When more scanners join the pipeline we add new threshold fields here

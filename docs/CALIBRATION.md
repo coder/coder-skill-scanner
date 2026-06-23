@@ -135,7 +135,7 @@ user-visible notification. Those 2 findings are real and minor; the
 cleanest fix is a one-line `echo` before each write in the upstream
 skill repo rather than any change here.
 
-**Model swap caveat**: production runs against `claude-sonnet-4-5`
+**Model swap caveat**: production runs against `claude-sonnet-4-6`
 via the Anthropic API (see "Provider choice" below), not against
 `gpt-4.1-mini`. The 25 → 2 delta above measures SkillSpector's LLM
 semantic pass *as a capability*; absolute counts may shift one or two
@@ -163,9 +163,9 @@ scope. The contract documented here only takes effect once that edit
 lands (or is pasted by a human with workflow write access).
 
 Provider is `anthropic` against `api.anthropic.com` directly, model
-`claude-sonnet-4-5-20250929`. The Anthropic API key is on a separate
-billing line from Coder usage because SkillSpector cannot be routed
-through Coder's AI Gateway today:
+`claude-sonnet-4-6`. The Anthropic API key is on a separate billing
+line from Coder usage because SkillSpector cannot be routed through
+Coder's AI Gateway today:
 
 - aibridge does proxy Claude under its `/anthropic` path, but only in
   Anthropic's native `/v1/messages` shape.
@@ -228,10 +228,10 @@ Re-run this analysis when any of:
   protects us from drifting silently; a deliberate bump should walk
   through this doc.
 - The LLM model or provider changes (e.g., moving from
-  `claude-sonnet-4-5` to Opus or to a non-Anthropic provider).
-  Different models filter differently; spot-check the five in-tree
-  skills before merging the provider swap and refresh the table
-  above.
+  `claude-sonnet-4-6` to Opus, Fable, or to a non-Anthropic
+  provider). Different models filter differently; spot-check the
+  five in-tree skills before merging the provider swap and refresh
+  the table above.
 - We observe a real-world skill that lands in an obviously wrong
   bucket (false positive or false negative). Open a tracking issue,
   link it from this doc, and adjust with evidence in the next PR.
