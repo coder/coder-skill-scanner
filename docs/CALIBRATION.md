@@ -109,8 +109,9 @@ human-readable explanation that ships in the per-finding output.
 
 ### Measured impact on the five in-tree skills
 
-Measured against `gpt-4.1-mini` through Coder's AI Gateway. Methodology:
-ran `skillspector scan` twice on each upstream skill (once with
+Measured against `gpt-4.1-mini` through Coder's AI Gateway during
+development, before the provider swap below. Methodology: ran
+`skillspector scan` twice on each upstream skill (once with
 `--no-llm`, once with LLM mode on) and aggregated the per-skill
 results. Total catalogue-wide findings dropped from 25 to 2:
 
@@ -134,6 +135,19 @@ user-visible notification. Those 2 findings are real and minor; the
 cleanest fix is a one-line `echo` before each write in the upstream
 skill repo rather than any change here.
 
+**Model swap caveat**: production runs against `claude-sonnet-4-5`
+via the Anthropic API (see "Provider choice" below), not against
+`gpt-4.1-mini`. The 25 → 2 delta above measures SkillSpector's LLM
+semantic pass *as a capability*; absolute counts may shift one or two
+either way under Claude because the two models filter false positives
+slightly differently. The verdict-band outcomes (`coder/setup` flips
+malicious → clean, every other in-tree skill stays clean) are robust
+to that drift: every static finding on the four other skills is well
+below the `suspicious_risk_score: 51` cutoff to begin with, so even a
+100% no-filter LLM still leaves them clean. Recalibration against
+Claude is a 30-minute follow-up PR once the secret is wired in and
+the first production scan lands; this doc gets the real numbers then.
+
 ### Provider choice and the workflow gap
 
 The scheduled scan runs LLM mode when the workflow's chosen credential
@@ -148,14 +162,33 @@ Agents GitHub App on this repo currently lacks the `workflows: write`
 scope. The contract documented here only takes effect once that edit
 lands (or is pasted by a human with workflow write access).
 
-Provider is `openai` against Coder's AI Gateway endpoint
-(`OPENAI_BASE_URL=https://dev.coder.com/api/v2/aibridge/openai/v1`)
-with model `gpt-4.1-mini`. SkillSpector's `anthropic` provider was
-tried first because it would map more directly to claude-sonnet-class
-models, but its `provider.py` hardcodes `https://api.anthropic.com/v1/`
-and ignores `ANTHROPIC_BASE_URL`, so it cannot be steered at aibridge.
-The `openai` provider does respect `OPENAI_BASE_URL`, and aibridge
-exposes `gpt-4.1-mini` plus a long list of other OpenAI-class models.
+Provider is `anthropic` against `api.anthropic.com` directly, model
+`claude-sonnet-4-5-20250929`. The Anthropic API key is on a separate
+billing line from Coder usage because SkillSpector cannot be routed
+through Coder's AI Gateway today:
+
+- aibridge does proxy Claude under its `/anthropic` path, but only in
+  Anthropic's native `/v1/messages` shape.
+- SkillSpector pipes every provider through
+  `langchain_openai.ChatOpenAI`, which speaks OpenAI's
+  `/v1/chat/completions` shape.
+- aibridge does not mount `/v1/chat/completions` on its `/anthropic`
+  path (verified: `route not supported`).
+- SkillSpector's `anthropic` provider also hardcodes
+  `https://api.anthropic.com/v1/` in `providers/anthropic/provider.py`
+  and ignores `ANTHROPIC_BASE_URL`, so even if aibridge did expose the
+  OpenAI-compat route on its Anthropic path, an env-only swap would
+  not steer SkillSpector at it.
+
+Using `openai` against aibridge with `gpt-4.1-mini` is a viable
+alternative (and is what the calibration table above was measured
+against). The trade-off is real: aibridge routing keeps inference
+spend on Coder's existing billing line and avoids a second vendor,
+but commits the scanner to whichever OpenAI-class model aibridge
+exposes rather than Claude. If aibridge later adds either a Claude
+OpenAI-compat route on `/anthropic` or a native-Anthropic
+integration into SkillSpector, the provider line in `config.yaml`
+flips back without any workflow change.
 
 ### How the LLM pass interacts with the verdict math
 
@@ -194,10 +227,11 @@ Re-run this analysis when any of:
   that shifts where its bands sit. The pinned commit in `config.yaml`
   protects us from drifting silently; a deliberate bump should walk
   through this doc.
-- The LLM model or provider changes (e.g., moving from `gpt-4.1-mini`
-  to a Claude or Gemini model, or from aibridge to a direct provider
-  key). Different models filter differently; spot-check the five
-  in-tree skills before merging the provider swap.
+- The LLM model or provider changes (e.g., moving from
+  `claude-sonnet-4-5` to Opus or to a non-Anthropic provider).
+  Different models filter differently; spot-check the five in-tree
+  skills before merging the provider swap and refresh the table
+  above.
 - We observe a real-world skill that lands in an obviously wrong
   bucket (false positive or false negative). Open a tracking issue,
   link it from this doc, and adjust with evidence in the next PR.
