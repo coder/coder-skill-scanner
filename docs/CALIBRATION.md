@@ -64,18 +64,18 @@ The current `coder/registry` in-tree catalogue contains five skills:
 `coder/coder-modules`, `coder/coder-templates`, `coder/modules`,
 `coder/templates`, and `coder/setup`. Under the chosen thresholds:
 
-| Skill                  | SkillSpector score | Verdict     |
-|------------------------|-------------------:|-------------|
-| `coder/coder-modules`  | 0                  | `clean`     |
-| `coder/coder-templates`| 0                  | `clean`     |
-| `coder/modules`        | 0                  | `clean`     |
-| `coder/templates`      | 10                 | `clean`     |
-| `coder/setup`          | 100                | `malicious` |
+| Skill                  | static score | LLM-mode score | static verdict | LLM-mode verdict |
+|------------------------|-------------:|---------------:|----------------|------------------|
+| `coder/coder-modules`  | 10           | 0              | `clean`        | `clean`          |
+| `coder/coder-templates`| 10           | 0              | `clean`        | `clean`          |
+| `coder/modules`        | 0            | 0              | `clean`        | `clean`          |
+| `coder/templates`      | 0            | 0              | `clean`        | `clean`          |
+| `coder/setup`          | 100          | 26             | `malicious`    | `clean`          |
 
 The previous thresholds (40/75) produced the same outcome for these
-five inputs. The change does not silence any signal that was firing
-today; it raises the bar that future skills must clear before being
-called out.
+five inputs under static-only mode. The change does not silence any
+signal that was firing today; it raises the bar that future skills
+must clear before being called out.
 
 ## Threshold choices
 
@@ -103,37 +103,68 @@ verdict:
 
 SkillSpector ships a two-stage analyser: fast static rules (the 64
 patterns SkillSpector documents) followed by an optional LLM semantic
-pass. Upstream's published precision numbers are:
+pass. The LLM pass reads each finding's surrounding context, classifies
+intent, filters context-aware false positives, and writes a
+human-readable explanation that ships in the per-finding output.
 
-- `--no-llm` (static only): high recall, moderate precision (~70%).
-  False positives on context-sensitive patterns are common; for
-  example, EA2 ("autonomous decision making") fires on prose that
-  documents safeguards as well as prose that bypasses them.
-- Default (LLM on): ~87% precision. The LLM pass reads each finding's
-  surrounding context, classifies intent, filters context-aware false
-  positives, and writes a human-readable explanation that ships in the
-  per-finding output.
+### Measured impact on the five in-tree skills
+
+Measured against `gpt-4.1-mini` through Coder's AI Gateway. Methodology:
+ran `skillspector scan` twice on each upstream skill (once with
+`--no-llm`, once with LLM mode on) and aggregated the per-skill
+results. Total catalogue-wide findings dropped from 25 to 2:
+
+| Skill                  | findings (static) | findings (LLM) | Δ        |
+|------------------------|------------------:|---------------:|----------|
+| `coder/coder-modules`  | 1                 | 0              | -1       |
+| `coder/coder-templates`| 1                 | 0              | -1       |
+| `coder/modules`        | 0                 | 0              | 0        |
+| `coder/setup`          | 23                | 2              | -21      |
+| `coder/templates`      | 0                 | 0              | 0        |
+| **TOTAL**              | **25**            | **2**          | **-23**  |
+
+`coder/setup`'s verdict moves from `malicious` (100) to `clean` (26).
+The LLM filtered all 23 static-only findings as context-aware false
+positives (the EA2 hits on safeguard prose, the MP2 hits on PNG
+assets, the SC2 hits on `curl coder.com/install.sh`, the PE3 hits on
+the skill's own scratch files, etc.) and surfaced 2 new MEDIUM
+findings (`SQP-2`) the static pass missed: the GitHub device-flow
+scripts write the OAuth token and session config to disk without a
+user-visible notification. Those 2 findings are real and minor; the
+cleanest fix is a one-line `echo` before each write in the upstream
+skill repo rather than any change here.
+
+### Provider choice and the workflow gap
 
 The scheduled scan runs LLM mode when the workflow's chosen credential
-secret (`NVIDIA_INFERENCE_KEY` for the default `nv_build` provider) is
-configured. The fallback to `--no-llm` is automatic when the secret is
-missing, so an unset secret on a fresh fork degrades the scan rather
-than breaking it.
+secret is configured. The fallback to `--no-llm` is automatic when the
+secret is missing, so an unset secret on a fresh fork degrades the
+scan rather than breaking it.
 
-The LLM pass does not affect the threshold math: SkillSpector's
+**Important caveat for this PR**: `.github/workflows/scan.yaml` in the
+current branch still hardcodes `--no-llm`. The matching workflow edit
+is in the PR description but is committed separately because the Coder
+Agents GitHub App on this repo currently lacks the `workflows: write`
+scope. The contract documented here only takes effect once that edit
+lands (or is pasted by a human with workflow write access).
+
+Provider is `openai` against Coder's AI Gateway endpoint
+(`OPENAI_BASE_URL=https://dev.coder.com/api/v2/aibridge/openai/v1`)
+with model `gpt-4.1-mini`. SkillSpector's `anthropic` provider was
+tried first because it would map more directly to claude-sonnet-class
+models, but its `provider.py` hardcodes `https://api.anthropic.com/v1/`
+and ignores `ANTHROPIC_BASE_URL`, so it cannot be steered at aibridge.
+The `openai` provider does respect `OPENAI_BASE_URL`, and aibridge
+exposes `gpt-4.1-mini` plus a long list of other OpenAI-class models.
+
+### How the LLM pass interacts with the verdict math
+
+The LLM pass does not affect the threshold math. SkillSpector's
 `risk_score` is still a 0-100 weighted sum of rule hits, and the
 51/81 cutoffs above still map directly to `HIGH` and `CRITICAL` bands.
-It does affect which findings reach the verdict: false positives that
-the LLM filters out no longer contribute to the score. Expect verdicts
-to move down (or stay the same) when LLM mode flips on, not up.
-
-For the five existing in-tree skills, the static-only scan placed
-`coder/setup` at 100 / `malicious`. With LLM mode on we expect the
-findings list to shrink (the EA2 prose hits and the asset-path MP2
-hits should be filtered) but the score will still be high. Reducing
-`coder/setup`'s verdict below `suspicious` requires the upcoming
-permissions-manifest layer (Phase 3 of the v3 plan), not the LLM pass
-alone.
+What changes is which findings reach the verdict: false positives the
+LLM filters out no longer contribute to the score. Verdicts move down
+(or stay the same) when LLM mode flips on, not up.
 
 ## What we did not change (and why)
 
@@ -163,9 +194,10 @@ Re-run this analysis when any of:
   that shifts where its bands sit. The pinned commit in `config.yaml`
   protects us from drifting silently; a deliberate bump should walk
   through this doc.
-- The LLM provider changes (e.g., moving from `nv_build` to
-  `anthropic`). Different models filter differently; spot-check the
-  five in-tree skills before merging the provider swap.
+- The LLM model or provider changes (e.g., moving from `gpt-4.1-mini`
+  to a Claude or Gemini model, or from aibridge to a direct provider
+  key). Different models filter differently; spot-check the five
+  in-tree skills before merging the provider swap.
 - We observe a real-world skill that lands in an obviously wrong
   bucket (false positive or false negative). Open a tracking issue,
   link it from this doc, and adjust with evidence in the next PR.
