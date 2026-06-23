@@ -39,43 +39,53 @@ scanners:
     # so a bumper bot lives outside the loop until the upstream
     # publishes to PyPI and the pin can move into pyproject.toml.
     pin: "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@2eb844780ab163f01468ecf142c40a2ec0fcaec0"
-    # Extra CLI flags passed to every SkillSpector invocation. Empty by
-    # default; the scan workflow appends --no-llm dynamically when the
-    # LLM credential secret is not set (see llm: block below). CI runs
-    # do not invoke SkillSpector live.
+    # Extra CLI flags passed to every SkillSpector invocation. Left
+    # empty so .github/workflows/scan.yaml can drive --no-llm
+    # dynamically based on whether the LLM credential secret is set
+    # (see contract under the llm: block below).
     flags: []
-    # SkillSpector ships a two-stage analyser: fast static rules followed
-    # by an optional LLM semantic pass. The LLM pass lifts precision
-    # from roughly 70% to roughly 87% per upstream docs by filtering
-    # context-aware false positives, classifying intent on prompt
-    # injection patterns, and producing human-readable explanations.
+    # SkillSpector ships a two-stage analyser: fast static rules
+    # followed by an optional LLM semantic pass. Measured on the five
+    # in-tree skills, LLM mode dropped catalogue-wide findings from
+    # 25 to 2 and moved coder/setup from malicious to clean. See
+    # docs/CALIBRATION.md for the per-skill numbers and methodology.
     #
-    # The scheduled scan reads the credential matching the provider
-    # below from a repository secret. When the secret is configured,
-    # LLM mode is on. When the secret is missing, the workflow falls
-    # back to --no-llm automatically so a fresh fork is never broken
-    # by an unset secret.
+    # Contract with .github/workflows/scan.yaml: the workflow reads
+    # the credential matching the provider below from a repository
+    # secret. When the secret is set, LLM mode runs. When the secret
+    # is missing, the workflow appends --no-llm so a fresh fork is
+    # never broken by an unset secret.
     #
-    # Provider options and the env var SkillSpector consumes:
+    # NOTE: scan.yaml in this branch still hardcodes --no-llm. The
+    # matching workflow edit is in this PR's description but is
+    # committed separately because the Coder Agents GitHub App on
+    # this repo currently lacks the `workflows: write` scope. After
+    # both land, the config and the workflow drive LLM mode together.
     #
-    #   provider          env var(s)
-    #   anthropic         ANTHROPIC_API_KEY               (api.anthropic.com)
-    #   anthropic_proxy   ANTHROPIC_PROXY_API_KEY + ANTHROPIC_PROXY_ENDPOINT_URL
-    #   openai            OPENAI_API_KEY                  (+ OPENAI_BASE_URL for AI gateways)
-    #   nv_build          NVIDIA_INFERENCE_KEY            (free; build.nvidia.com)
+    # Provider options:
+    #   provider   env var(s)                          endpoint
+    #   openai     OPENAI_API_KEY + OPENAI_BASE_URL    any OpenAI-compatible URL
+    #   anthropic  ANTHROPIC_API_KEY                   api.anthropic.com (hardcoded;
+    #                                                  ignores ANTHROPIC_BASE_URL)
+    #   nv_build   NVIDIA_INFERENCE_KEY                build.nvidia.com (free)
     #
     # Changing provider also requires updating the env block in
     # .github/workflows/scan.yaml so the matching secret is wired in,
     # and adding the secret under Settings > Secrets and variables >
     # Actions.
     llm:
-      provider: anthropic
-      # SkillSpector's bundled default for the anthropic provider is
-      # claude-opus-4-6. Sonnet 4.6 is roughly 5x cheaper than Opus and
-      # is well-suited for the finding-classification task the LLM pass
-      # actually does, so it is the better cost/quality choice for
-      # periodic scanning. Override here to pin a different revision.
-      model: "claude-sonnet-4-6"
+      # Routes through Coder's AI Gateway (aibridge). OPENAI_BASE_URL
+      # is set as a repo variable to:
+      #   https://dev.coder.com/api/v2/aibridge/openai/v1
+      # The openai-compatible path is used because SkillSpector's
+      # `anthropic` provider hardcodes api.anthropic.com and ignores
+      # ANTHROPIC_BASE_URL, so it cannot be steered at aibridge.
+      provider: openai
+      # gpt-4.1-mini is the cost/quality sweet spot for SkillSpector's
+      # finding-classification work and is the model the calibration
+      # in docs/CALIBRATION.md was measured against. Override to pin
+      # a different revision (e.g. gpt-5.4-mini, gpt-4.1).
+      model: "gpt-4.1-mini"
 
 # Per-skill verdict policy. v1 has one input (SkillSpector risk_score).
 # When more scanners join the pipeline we add new threshold fields here
