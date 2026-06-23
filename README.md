@@ -9,9 +9,9 @@ Every 6 hours, the scheduled workflow in this repo:
    `.agents/skills/` format and the future external-sources format).
 2. Shallow-clones each source repo.
 3. Runs [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector) over
-   the upstream content. The scheduled scan uses LLM semantic analysis
-   when the credential secret is configured, and falls back to
-   `--no-llm` static-only mode otherwise.
+   the upstream content. The scheduled scan runs SkillSpector's LLM
+   semantic pass when the workflow's LLM credential secret is
+   configured, and falls back to `--no-llm` static-only mode otherwise.
 4. Builds a per-skill verdict (`clean`, `suspicious`, `malicious`,
    `unknown`) from `risk_score` plus the thresholds in `config.yaml`.
 5. Builds the React SPA in `site/` and ships it together with
@@ -26,6 +26,13 @@ Radix, react-router-dom, and tanstack-query stack.
 The registry site reads the public report through a small proxy endpoint
 in `coder/registry-server` (separate PR) and shows a per-skill badge.
 The registry's deploys are not gated on the scan result.
+
+> **Note on the LLM semantic pass.** Step 3's conditional-LLM behavior
+> requires the matching edit in `.github/workflows/scan.yaml`. That edit
+> is part of the same change that introduces this section in the README;
+> see the PR description for the diff. The current `scan.yaml` on this
+> branch still hardcodes `--no-llm`, so adding the secret alone has no
+> effect until the workflow edit also lands.
 
 ## Reading the latest report
 
@@ -64,23 +71,35 @@ as `/skills/coder/setup` stay client-side.
 
 ## One-time setup on the repo
 
-Three things have to be configured once on the GitHub repo before the
+Four things have to be configured once on the GitHub repo before the
 scheduled scan publishes a useful result:
 
 1. **Settings > Pages**: set source to "GitHub Actions". The
    `publish-pages` job in `scan.yaml` will fail until this is set.
 2. **Settings > Actions**: workflow permissions "Read and write" so
    `publish-release` can create the rolling `latest` release.
-3. **Settings > Secrets and variables > Actions**: add the LLM
-   credential matching the provider in `config.yaml`'s
-   `scanners.skillspector.llm.provider`. For the default `anthropic`
-   provider this is `ANTHROPIC_API_KEY` (from
-   [console.anthropic.com](https://console.anthropic.com)). Without
-   the secret the scan still runs, but SkillSpector falls back to
-   `--no-llm` static-only mode and precision drops from roughly 87%
-   to roughly 70%. See `docs/CALIBRATION.md` for the precision
-   discussion. The optional `SLACK_WEBHOOK_URL` secret enables the
+3. **Settings > Secrets and variables > Actions > Variables**: add
+   `OPENAI_BASE_URL` with the value
+   `https://dev.coder.com/api/v2/aibridge/openai/v1`. This is a
+   variable (not a secret) because it is not sensitive; only the API
+   key is.
+4. **Settings > Secrets and variables > Actions > Secrets**: add the
+   LLM credential matching the provider in `config.yaml`'s
+   `scanners.skillspector.llm.provider`. For the default `openai`
+   provider this is `OPENAI_API_KEY` set to a Coder AI Gateway token.
+   Without the secret, the scan still runs but SkillSpector falls
+   back to `--no-llm` static-only mode and precision drops. See
+   `docs/CALIBRATION.md` for the measured before/after numbers. The
+   optional `SLACK_WEBHOOK_URL` secret enables the
    `notify-slack-on-failure` job; without it that job is a no-op.
+
+> **Workflow file note**: enabling LLM mode also requires the matching
+> edit in `.github/workflows/scan.yaml` (it must export the secret
+> into the SkillSpector step and conditionally append `--no-llm`).
+> That edit is part of the same change that introduces this section
+> and is documented in the PR description, but is committed
+> separately because the Coder Agents GitHub App on this repo
+> currently lacks the `workflows: write` scope.
 
 ## Repo layout
 
@@ -119,9 +138,11 @@ This scanner is data-driven. To run it against a different registry:
    "GitHub Actions").
 4. Set Actions workflow permissions to "Read and write" so the
    publish-release job can create releases.
-5. Add the LLM credential secret matching your chosen provider
-   (see "One-time setup on the repo" above). Optional; static-only
-   mode works without it.
+5. To enable the LLM semantic pass, add the credential secret and the
+   matching `OPENAI_BASE_URL` variable per "One-time setup on the
+   repo" above, AND confirm `.github/workflows/scan.yaml` exports the
+   secret into the SkillSpector step. Static-only mode (without the
+   secret) is the default and works out of the box.
 6. Enable Actions.
 
 No source changes required for catalogue changes.
@@ -140,8 +161,8 @@ SkillSpector's `risk_score` (0-100) is the only input. The thresholds
 are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands;
 [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) walks through the
 evidence (SkillSpector source, the ClawHub paper, our in-tree
-catalogue) behind the chosen numbers, and the LLM-on-vs-off precision
-discussion behind running the semantic pass on every scheduled scan.
+catalogue) behind the chosen numbers and the measured LLM-on-vs-off
+impact on the five in-tree skills.
 
 The architecture keeps room for additional scanners (gitleaks, Semgrep,
 VirusTotal Premium, etc.); adding one is a new module under `scanner/`,
