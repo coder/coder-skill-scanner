@@ -64,9 +64,8 @@ scanners:
     #
     # Provider options:
     #   provider   env var(s)                          endpoint
+    #   anthropic  ANTHROPIC_API_KEY                   api.anthropic.com
     #   openai     OPENAI_API_KEY + OPENAI_BASE_URL    any OpenAI-compatible URL
-    #   anthropic  ANTHROPIC_API_KEY                   api.anthropic.com (hardcoded;
-    #                                                  ignores ANTHROPIC_BASE_URL)
     #   nv_build   NVIDIA_INFERENCE_KEY                build.nvidia.com (free)
     #
     # Changing provider also requires updating the env block in
@@ -74,18 +73,26 @@ scanners:
     # and adding the secret under Settings > Secrets and variables >
     # Actions.
     llm:
-      # Routes through Coder's AI Gateway (aibridge). OPENAI_BASE_URL
-      # is set as a repo variable to:
-      #   https://dev.coder.com/api/v2/aibridge/openai/v1
-      # The openai-compatible path is used because SkillSpector's
-      # `anthropic` provider hardcodes api.anthropic.com and ignores
-      # ANTHROPIC_BASE_URL, so it cannot be steered at aibridge.
-      provider: openai
-      # gpt-4.1-mini is the cost/quality sweet spot for SkillSpector's
-      # finding-classification work and is the model the calibration
-      # in docs/CALIBRATION.md was measured against. Override to pin
-      # a different revision (e.g. gpt-5.4-mini, gpt-4.1).
-      model: "gpt-4.1-mini"
+      # Hits api.anthropic.com directly with an Anthropic API key (not
+      # routed through Coder's AI Gateway). aibridge was the original
+      # plan, but SkillSpector pipes every provider through
+      # langchain_openai.ChatOpenAI which hits `/v1/chat/completions`,
+      # and aibridge only mounts that path under `/openai`, not
+      # `/anthropic`. The `anthropic` provider in SkillSpector also
+      # hardcodes `https://api.anthropic.com/v1/` and ignores
+      # ANTHROPIC_BASE_URL, so aibridge cannot be steered into the
+      # Claude path today. This means the Anthropic API key is on a
+      # separate billing line from Coder usage.
+      provider: anthropic
+      # claude-sonnet-4-5 is the cost/quality sweet spot for
+      # SkillSpector's finding-classification work. SkillSpector's
+      # bundled default for the anthropic provider is
+      # `claude-opus-4-6`, which is ~5x the per-token cost; the
+      # finding-classification task does not need Opus-class
+      # reasoning. Bump to a newer Sonnet revision (or to Opus) by
+      # editing this string; SkillSpector passes it directly to the
+      # Anthropic API.
+      model: "claude-sonnet-4-5-20250929"
 
 # Per-skill verdict policy. v1 has one input (SkillSpector risk_score).
 # When more scanners join the pipeline we add new threshold fields here
