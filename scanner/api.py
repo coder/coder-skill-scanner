@@ -186,13 +186,19 @@ def write_api_v1(
         ss = (skill.get("scanners") or {}).get("skillspector") or {}
         risk = int(ss.get("risk_score", 0))
         v_json = badge_dir / "verdict.json"
-        v_json.write_text(json.dumps(badges.verdict_badge_json(verdict), indent=2) + "\n", encoding="utf-8")
+        v_json.write_text(
+            json.dumps(badges.verdict_badge_json(verdict), indent=2) + "\n",
+            encoding="utf-8",
+        )
         written.append(v_json)
         v_svg = badge_dir / "verdict.svg"
         v_svg.write_text(badges.verdict_badge_svg(verdict), encoding="utf-8")
         written.append(v_svg)
         r_json = badge_dir / "risk.json"
-        r_json.write_text(json.dumps(badges.risk_badge_json(risk), indent=2) + "\n", encoding="utf-8")
+        r_json.write_text(
+            json.dumps(badges.risk_badge_json(risk), indent=2) + "\n",
+            encoding="utf-8",
+        )
         written.append(r_json)
         r_svg = badge_dir / "risk.svg"
         r_svg.write_text(badges.risk_badge_svg(risk), encoding="utf-8")

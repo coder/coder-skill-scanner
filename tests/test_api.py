@@ -27,7 +27,9 @@ def _skill(slug: str, *, verdict: str = "clean", risk: int = 5) -> dict:
                 "risk_severity": "low" if verdict == "clean" else "high",
                 "risk_recommendation": "",
                 "findings_by_severity": {"medium": 1} if risk else {},
-                "findings_by_rule": [{"id": "LP3", "severity": "medium", "count": 1}] if risk else [],
+                "findings_by_rule": (
+                    [{"id": "LP3", "severity": "medium", "count": 1}] if risk else []
+                ),
             }
         },
         "artifacts": {},
