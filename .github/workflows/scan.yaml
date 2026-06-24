@@ -88,22 +88,43 @@ jobs:
             echo "drift=true" >> "$GITHUB_OUTPUT"
             echo "Skill path source/${{ matrix.skill_path }} not present upstream; will report catalogue drift." >&2
           fi
+      - name: Determine LLM mode
+        id: llm
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+            echo "extra_flags=" >> "$GITHUB_OUTPUT"
+            echo "SkillSpector LLM mode: enabled (anthropic provider, api.anthropic.com)." >&2
+          else
+            echo "extra_flags=--no-llm" >> "$GITHUB_OUTPUT"
+            echo "::warning::ANTHROPIC_API_KEY secret not set; SkillSpector will run with --no-llm. Set the secret on this repo to enable the LLM semantic pass."
+          fi
       - name: SkillSpector (JSON)
         if: steps.path_check.outputs.drift == 'false'
         continue-on-error: true
+        env:
+          SKILLSPECTOR_PROVIDER: anthropic
+          SKILLSPECTOR_MODEL: claude-sonnet-4-6
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           mkdir -p out
           skillspector scan "source/${{ matrix.skill_path }}" \
-            --no-llm \
+            ${{ steps.llm.outputs.extra_flags }} \
             --format json \
             --output "out/skillspector.json" || true
       - name: SkillSpector (SARIF)
         if: steps.path_check.outputs.drift == 'false'
         continue-on-error: true
+        env:
+          SKILLSPECTOR_PROVIDER: anthropic
+          SKILLSPECTOR_MODEL: claude-sonnet-4-6
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           mkdir -p out
           skillspector scan "source/${{ matrix.skill_path }}" \
-            --no-llm \
+            ${{ steps.llm.outputs.extra_flags }} \
             --format sarif \
             --output "out/skillspector.sarif" || true
       - name: Combine

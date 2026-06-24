@@ -48,7 +48,7 @@ def evaluate(
 
     thresholds = config.get("verdict") or {}
     # Defaults match config.yaml. Keep these in sync with
-    # docs/CALIBRATION.md and VerdictExplanation.tsx's defaults.
+    # VerdictExplanation.tsx's defaults.
     malicious_at = int(thresholds.get("malicious_risk_score", 81))
     suspicious_at = int(thresholds.get("suspicious_risk_score", 51))
 

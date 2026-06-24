@@ -8,8 +8,10 @@ Every 6 hours, the scheduled workflow in this repo:
 1. Enumerates every skill in `coder/registry` (both the in-tree
    `.agents/skills/` format and the future external-sources format).
 2. Shallow-clones each source repo.
-3. Runs [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector) in
-   `--no-llm` static mode over the upstream content.
+3. Runs [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector) over
+   the upstream content. The scheduled scan runs SkillSpector's LLM
+   semantic pass when the workflow's LLM credential secret is
+   configured, and falls back to `--no-llm` static-only mode otherwise.
 4. Builds a per-skill verdict (`clean`, `suspicious`, `malicious`,
    `unknown`) from `risk_score` plus the thresholds in `config.yaml`.
 5. Builds the React SPA in `site/` and ships it together with
@@ -97,7 +99,13 @@ This scanner is data-driven. To run it against a different registry:
    "GitHub Actions").
 4. Set Actions workflow permissions to "Read and write" so the
    publish-release job can create releases.
-5. Enable Actions.
+5. To enable the LLM semantic pass, set the credential secret matching
+   `config.yaml`'s `scanners.skillspector.llm.provider` on your fork
+   (for the default `anthropic` provider, `ANTHROPIC_API_KEY`), AND
+   confirm `.github/workflows/scan.yaml` exports that secret into the
+   SkillSpector step. Static-only mode (without the secret) is the
+   default and works out of the box.
+6. Enable Actions.
 
 No source changes required for catalogue changes.
 
@@ -112,10 +120,7 @@ verdict:
 ```
 
 SkillSpector's `risk_score` (0-100) is the only input. The thresholds
-are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands;
-[`docs/CALIBRATION.md`](./docs/CALIBRATION.md) walks through the
-evidence (SkillSpector source, the ClawHub paper, our in-tree
-catalogue) behind the chosen numbers.
+are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands.
 
 The architecture keeps room for additional scanners (gitleaks, Semgrep,
 VirusTotal Premium, etc.); adding one is a new module under `scanner/`,

@@ -19,7 +19,7 @@ interface RiskBarProps {
    * Optional cutoffs (0..100) for the suspicious and malicious bands.
    * When supplied, the bar renders thin tick marks at those positions so
    * the user can see how close a score is to escalating. Defaults match
-   * the policy in config.yaml and docs/CALIBRATION.md.
+   * the policy in config.yaml.
    */
   suspicious_at?: number;
   malicious_at?: number;
