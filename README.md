@@ -77,12 +77,11 @@ scheduled scan publishes a useful result:
    provider this is `ANTHROPIC_API_KEY` (from
    [console.anthropic.com](https://console.anthropic.com); this is a
    separate billing line from Coder usage because SkillSpector cannot
-   be routed through aibridge today, see `docs/CALIBRATION.md`).
-   Without the secret, the scan still runs but SkillSpector falls
-   back to `--no-llm` static-only mode and precision drops. See
-   `docs/CALIBRATION.md` for the measured before/after numbers. The
-   optional `SLACK_WEBHOOK_URL` secret enables the
-   `notify-slack-on-failure` job; without it that job is a no-op.
+   be routed through aibridge today). Without the secret, the scan
+   still runs but SkillSpector falls back to `--no-llm` static-only
+   mode and precision drops. The optional `SLACK_WEBHOOK_URL` secret
+   enables the `notify-slack-on-failure` job; without it that job is
+   a no-op.
 
 ## Repo layout
 
@@ -141,10 +140,7 @@ verdict:
 ```
 
 SkillSpector's `risk_score` (0-100) is the only input. The thresholds
-are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands;
-[`docs/CALIBRATION.md`](./docs/CALIBRATION.md) walks through the
-evidence (SkillSpector source, the ClawHub paper, our in-tree
-catalogue) behind the chosen numbers.
+are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands.
 
 The architecture keeps room for additional scanners (gitleaks, Semgrep,
 VirusTotal Premium, etc.); adding one is a new module under `scanner/`,

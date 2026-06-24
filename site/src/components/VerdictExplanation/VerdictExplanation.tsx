@@ -374,8 +374,7 @@ const CategoryCard: FC<CategoryCardProps> = ({ group }) => {
 export const VerdictExplanation: FC<VerdictExplanationProps> = ({
   skill,
   // Defaults match config.yaml and scanner/verdict.py. They are also
-  // SkillSpector's own HIGH and CRITICAL band edges; see
-  // docs/CALIBRATION.md for the calibration write-up.
+  // SkillSpector's own HIGH and CRITICAL band edges.
   malicious_at = 81,
   suspicious_at = 51,
   className,

@@ -58,13 +58,12 @@ scanners:
 #   51-80  HIGH      DO_NOT_INSTALL   -> verdict: suspicious
 #   81-100 CRITICAL  DO_NOT_INSTALL   -> verdict: malicious
 #
-# Rationale and source links live in docs/CALIBRATION.md. Short version:
-# SkillSpector's static-analysis layer is loud on real catalogues (the
-# ClawHub paper measured a ~49% positive rate on 67k skills) and is
-# advisory rather than authoritative, so we only escalate above its
-# HIGH cutoff. CAUTION-band findings still appear in the per-skill page
-# so reviewers can see them; we just do not flag the skill as suspicious
-# at the catalogue level.
+# Rationale: SkillSpector's static-analysis layer is loud on real
+# catalogues (the ClawHub paper measured a ~49% positive rate on 67k
+# skills) and is advisory rather than authoritative, so we only
+# escalate above its HIGH cutoff. CAUTION-band findings still appear
+# on the per-skill page so reviewers can see them; we just do not
+# flag the skill as suspicious at the catalogue level.
 verdict:
   malicious_risk_score: 81
   suspicious_risk_score: 51
