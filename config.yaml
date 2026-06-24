@@ -6,11 +6,13 @@
 config_version: 1
 
 catalogue:
-  # Where to enumerate skills from. Both the current production format
-  # (in-tree under .agents/skills/) and the future external-sources
-  # format (registry/<ns>/skills/README.md with sources[].repo) are
-  # supported. When both name the same slug, the external-sources entry
-  # wins.
+  # Skills are declared by per-namespace README.md files under
+  # registry/<ns>/skills/ in the catalogue repo. Each README's
+  # frontmatter lists sources[].repo plus per-skill overrides. This is
+  # the canonical declaration; the in-tree .agents/skills/ format is
+  # supported in scanner/enumerate.py for forks that need it but is
+  # not enabled here because coder/registry duplicates the same
+  # upstream skills across both layouts under different slugs.
   registry_repo:
     owner: coder
     repo: registry
@@ -22,13 +24,6 @@ catalogue:
       # has its frontmatter parsed for sources[].repo plus per-skill
       # overrides keyed by slug.
       readme_glob: registry/*/skills/README.md
-    in_tree:
-      enabled: true
-      # The namespace is fixed for in-tree skills today (coder).
-      namespace: coder
-      # Path glob inside the catalogue repo. Each <slug>/SKILL.md is one
-      # skill row in the matrix.
-      base_path: .agents/skills
 
 scanners:
   skillspector:
