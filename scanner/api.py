@@ -25,6 +25,7 @@ with a deprecation window on ``v1``.
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,19 @@ from typing import Any
 from . import badges
 
 API_SCHEMA_VERSION = 1
+
+# Filesystem-safe identifier shape for ``namespace`` and ``slug`` segments.
+# Skill IDs in the registry are kebab-case ASCII; rejecting anything else here
+# is defence-in-depth against a malformed report writing outside ``output_dir``
+# via ``../`` or absolute paths.
+_SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def _check_safe_segment(kind: str, value: str) -> str:
+    """Return ``value`` unchanged if it is a safe path segment, else raise."""
+    if not isinstance(value, str) or not _SAFE_SEGMENT.fullmatch(value):
+        raise ValueError(f"unsafe {kind} segment: {value!r}")
+    return value
 
 
 def _source_tree_url(skill: dict[str, Any]) -> str:
@@ -172,8 +186,8 @@ def write_api_v1(
     written.append(skills_index_path)
 
     for skill in report.get("skills", []):
-        ns = skill["namespace"]
-        slug = skill["slug"]
+        ns = _check_safe_segment("namespace", skill["namespace"])
+        slug = _check_safe_segment("slug", skill["slug"])
         detail = build_skill_detail(skill, public_base_url=public_base_url, report_url=report_url)
         detail_path = output_dir / "skills" / ns / f"{slug}.json"
         detail_path.parent.mkdir(parents=True, exist_ok=True)

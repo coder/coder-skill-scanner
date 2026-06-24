@@ -74,3 +74,18 @@ def test_svg_width_grows_with_message_length():
     sw = int(re.search(r'width="(\d+)"', short).group(1))
     lw = int(re.search(r'width="(\d+)"', long_).group(1))
     assert lw > sw
+
+
+def test_svg_escapes_markup_in_label_and_message():
+    """The SVG renderer must escape XML special chars; the public surface only
+    ever passes shape-constrained inputs, but defense in depth keeps the badge
+    well-formed if the input shape ever drifts."""
+    raw = badges._flat_badge_svg('<script>"&', 'a>"b', "#fff")
+    assert "<script>" not in raw
+    assert "&lt;script&gt;" in raw
+    # No bare double-quote leaks into an attribute body besides the legitimate
+    # SVG attributes (xmlns, width, etc.). aria-label uses the escaped form.
+    assert "aria-label=\"&lt;script&gt;&quot;&amp;: a&gt;&quot;b\"" in raw
+    # And the unescaped sequences must not appear anywhere in the output.
+    for needle in ('<script', '>"b', '&: '):
+        assert needle not in raw

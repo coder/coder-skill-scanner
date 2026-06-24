@@ -14,6 +14,7 @@ badge, 11px Verdana) is the contract for ``.svg`` consumers.
 from __future__ import annotations
 
 from typing import Any
+from xml.sax.saxutils import escape as _xml_escape
 
 SHIELDS_SCHEMA_VERSION = 1
 
@@ -87,6 +88,18 @@ def _estimate_text_width(text: str) -> int:
     return max(8, int(len(text) * 7) + 10)
 
 
+def _xml_safe(s: str) -> str:
+    """Escape a string for both SVG attribute and text contexts.
+
+    The badge inputs (verdict labels, risk-score strings) are produced by the
+    scanner and currently never contain markup characters, but the SVG is
+    served to third-party README consumers; defending against ``&``, ``<``,
+    ``>``, ``\"`` keeps the output well-formed and removes any path to SVG
+    injection if the input shape ever drifts.
+    """
+    return _xml_escape(s, {'"': "&quot;"})
+
+
 def _flat_badge_svg(label: str, message: str, color_hex: str) -> str:
     """Render a two-rect flat-style badge as inline SVG."""
     label_w = _estimate_text_width(label)
@@ -94,11 +107,13 @@ def _flat_badge_svg(label: str, message: str, color_hex: str) -> str:
     total_w = label_w + message_w
     label_mid = label_w / 2
     message_mid = label_w + message_w / 2
+    label_xml = _xml_safe(label)
+    message_xml = _xml_safe(message)
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'width="{total_w}" height="20" role="img" '
-        f'aria-label="{label}: {message}">'
-        f"<title>{label}: {message}</title>"
+        f'aria-label="{label_xml}: {message_xml}">'
+        f"<title>{label_xml}: {message_xml}</title>"
         '<linearGradient id="s" x2="0" y2="100%">'
         '<stop offset="0" stop-color="#bbb" stop-opacity=".1"/>'
         '<stop offset="1" stop-opacity=".1"/>'
@@ -114,14 +129,14 @@ def _flat_badge_svg(label: str, message: str, color_hex: str) -> str:
         'text-rendering="geometricPrecision" font-size="110">'
         f'<text aria-hidden="true" x="{label_mid * 10:.0f}" y="150" '
         'fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="'
-        f'{(label_w - 10) * 10:.0f}">{label}</text>'
+        f'{(label_w - 10) * 10:.0f}">{label_xml}</text>'
         f'<text x="{label_mid * 10:.0f}" y="140" transform="scale(.1)" '
-        f'fill="#fff" textLength="{(label_w - 10) * 10:.0f}">{label}</text>'
+        f'fill="#fff" textLength="{(label_w - 10) * 10:.0f}">{label_xml}</text>'
         f'<text aria-hidden="true" x="{message_mid * 10:.0f}" y="150" '
         'fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="'
-        f'{(message_w - 10) * 10:.0f}">{message}</text>'
+        f'{(message_w - 10) * 10:.0f}">{message_xml}</text>'
         f'<text x="{message_mid * 10:.0f}" y="140" transform="scale(.1)" '
-        f'fill="#fff" textLength="{(message_w - 10) * 10:.0f}">{message}</text>'
+        f'fill="#fff" textLength="{(message_w - 10) * 10:.0f}">{message_xml}</text>'
         "</g></svg>"
     )
 

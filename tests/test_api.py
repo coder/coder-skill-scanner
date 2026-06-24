@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scanner import api
 
 
@@ -168,3 +170,21 @@ def test_write_api_v1_skips_history_when_not_provided(tmp_path: Path):
     # 1 (skills.json) + 1 * (1 detail + 4 badge files) = 6
     assert len(written) == 6
     assert not (tmp_path / "history.json").exists()
+
+
+def test_write_api_v1_rejects_path_traversal_namespace(tmp_path: Path):
+    report = _report([_skill("modules")])
+    report["skills"][0]["namespace"] = "../evil"
+    with pytest.raises(ValueError, match="unsafe namespace"):
+        api.write_api_v1(
+            report, output_dir=tmp_path, public_base_url="https://example.com/x"
+        )
+
+
+def test_write_api_v1_rejects_path_traversal_slug(tmp_path: Path):
+    report = _report([_skill("modules")])
+    report["skills"][0]["slug"] = "ok/../escape"
+    with pytest.raises(ValueError, match="unsafe slug"):
+        api.write_api_v1(
+            report, output_dir=tmp_path, public_base_url="https://example.com/x"
+        )
