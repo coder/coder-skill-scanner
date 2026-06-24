@@ -144,8 +144,7 @@ SkillSpector's `risk_score` (0-100) is the only input. The thresholds
 are aligned to SkillSpector's own `HIGH` and `CRITICAL` bands;
 [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) walks through the
 evidence (SkillSpector source, the ClawHub paper, our in-tree
-catalogue) behind the chosen numbers and the measured LLM-on-vs-off
-impact on the five in-tree skills.
+catalogue) behind the chosen numbers.
 
 The architecture keeps room for additional scanners (gitleaks, Semgrep,
 VirusTotal Premium, etc.); adding one is a new module under `scanner/`,
