@@ -91,10 +91,10 @@ def test_skill_detail_uses_source_sha_for_tree_url():
     assert "main" not in detail["links"]["source_tree"], "source_tree must not pin to a mutable ref"
 
     badges = detail["links"]
-    assert badges["verdict_badge_json"].endswith("/api/v1/skills/coder/setup/badge/verdict.json")
-    assert badges["verdict_badge_svg"].endswith("/api/v1/skills/coder/setup/badge/verdict.svg")
-    assert badges["risk_badge_json"].endswith("/api/v1/skills/coder/setup/badge/risk.json")
-    assert badges["risk_badge_svg"].endswith("/api/v1/skills/coder/setup/badge/risk.svg")
+    assert badges["status_badge_json"].endswith("/api/v1/skills/coder/setup/badge/status.json")
+    assert badges["status_badge_svg"].endswith("/api/v1/skills/coder/setup/badge/status.svg")
+    assert badges["score_badge_json"].endswith("/api/v1/skills/coder/setup/badge/score.json")
+    assert badges["score_badge_svg"].endswith("/api/v1/skills/coder/setup/badge/score.svg")
     assert detail["links"]["report"] == "https://example.com/scanner/latest.json"
 
 
@@ -146,13 +146,13 @@ def test_write_api_v1_writes_full_tree(tmp_path: Path):
     assert setup_detail["verdict"] == "malicious"
 
     # Badge files exist and the SVGs are well-formed strings.
-    verdict_svg = (tmp_path / "skills" / "coder" / "setup" / "badge" / "verdict.svg").read_text()
+    verdict_svg = (tmp_path / "skills" / "coder" / "setup" / "badge" / "status.svg").read_text()
     assert verdict_svg.startswith("<svg")
     assert verdict_svg.rstrip().endswith("</svg>")
     assert "malicious" in verdict_svg
 
     risk_json = json.loads(
-        (tmp_path / "skills" / "coder" / "setup" / "badge" / "risk.json").read_text()
+        (tmp_path / "skills" / "coder" / "setup" / "badge" / "score.json").read_text()
     )
     assert risk_json["message"] == "100/100"
     assert risk_json["color"] == "red"

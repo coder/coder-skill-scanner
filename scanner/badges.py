@@ -56,8 +56,13 @@ _NAMED_HEX: dict[str, str] = {
 }
 
 
-def verdict_badge_json(verdict: str) -> dict[str, Any]:
-    """Build the shields.io-endpoint payload for a verdict badge."""
+def status_badge_json(verdict: str) -> dict[str, Any]:
+    """Build the shields.io-endpoint payload for the status badge.
+
+    The categorical scan outcome: "clean", "suspicious", "malicious", or
+    "unknown". Color follows the verdict 1:1 (brightgreen, yellow, red,
+    lightgrey). Pair with :func:`score_badge_json` for the numeric variant.
+    """
     return {
         "schemaVersion": SHIELDS_SCHEMA_VERSION,
         "label": "skill scan",
@@ -67,8 +72,13 @@ def verdict_badge_json(verdict: str) -> dict[str, Any]:
     }
 
 
-def risk_badge_json(risk_score: int) -> dict[str, Any]:
-    """Build the shields.io-endpoint payload for a risk-score badge."""
+def score_badge_json(risk_score: int) -> dict[str, Any]:
+    """Build the shields.io-endpoint payload for the score badge.
+
+    The numeric SkillSpector risk score (0-100). Color is banded at the
+    21 / 51 / 81 cutoffs that drive the verdict policy. Pair with
+    :func:`status_badge_json` for the categorical variant.
+    """
     return {
         "schemaVersion": SHIELDS_SCHEMA_VERSION,
         "label": "risk score",
@@ -141,13 +151,13 @@ def _flat_badge_svg(label: str, message: str, color_hex: str) -> str:
     )
 
 
-def verdict_badge_svg(verdict: str) -> str:
-    """Render the verdict badge as a self-contained SVG string."""
+def status_badge_svg(verdict: str) -> str:
+    """Render the status badge (categorical scan outcome) as inline SVG."""
     color = _NAMED_HEX[_VERDICT_COLORS.get(verdict, "lightgrey")]
     return _flat_badge_svg("skill scan", verdict, color)
 
 
-def risk_badge_svg(risk_score: int) -> str:
-    """Render the risk-score badge as a self-contained SVG string."""
+def score_badge_svg(risk_score: int) -> str:
+    """Render the score badge (numeric risk score) as inline SVG."""
     color = _NAMED_HEX[_risk_color(risk_score)]
     return _flat_badge_svg("risk score", f"{risk_score}/100", color)

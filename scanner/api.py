@@ -12,6 +12,16 @@ The v1 contract:
                                         rule, and a ``links`` object pointing
                                         at the badge endpoints and the
                                         immutable source-tree URL.
+- ``api/v1/skills/<ns>/<slug>/badge/status.{json,svg}``
+                                        Categorical scan-outcome badge
+                                        (clean/suspicious/malicious/unknown).
+                                        Directly addressable from the
+                                        ``(namespace, slug)`` pair - no detail
+                                        fetch required.
+- ``api/v1/skills/<ns>/<slug>/badge/score.{json,svg}``
+                                        Numeric risk-score badge (0-100,
+                                        colour-banded). Same direct-addressing
+                                        contract as ``status``.
 - ``api/v1/history.json``               Reshape of ``history/index.json`` into
                                         a versioned shape with absolute
                                         ``report_url`` fields so consumers do
@@ -70,10 +80,10 @@ def _badge_links(public_base_url: str, namespace: str, slug: str) -> dict[str, s
     """Return the four badge URLs for a single skill."""
     root = public_base_url.rstrip("/")
     return {
-        "verdict_badge_json": f"{root}/api/v1/skills/{namespace}/{slug}/badge/verdict.json",
-        "verdict_badge_svg": f"{root}/api/v1/skills/{namespace}/{slug}/badge/verdict.svg",
-        "risk_badge_json": f"{root}/api/v1/skills/{namespace}/{slug}/badge/risk.json",
-        "risk_badge_svg": f"{root}/api/v1/skills/{namespace}/{slug}/badge/risk.svg",
+        "status_badge_json": f"{root}/api/v1/skills/{namespace}/{slug}/badge/status.json",
+        "status_badge_svg": f"{root}/api/v1/skills/{namespace}/{slug}/badge/status.svg",
+        "score_badge_json": f"{root}/api/v1/skills/{namespace}/{slug}/badge/score.json",
+        "score_badge_svg": f"{root}/api/v1/skills/{namespace}/{slug}/badge/score.svg",
     }
 
 
@@ -199,23 +209,23 @@ def write_api_v1(
         verdict = skill["verdict"]
         ss = (skill.get("scanners") or {}).get("skillspector") or {}
         risk = int(ss.get("risk_score", 0))
-        v_json = badge_dir / "verdict.json"
+        v_json = badge_dir / "status.json"
         v_json.write_text(
-            json.dumps(badges.verdict_badge_json(verdict), indent=2) + "\n",
+            json.dumps(badges.status_badge_json(verdict), indent=2) + "\n",
             encoding="utf-8",
         )
         written.append(v_json)
-        v_svg = badge_dir / "verdict.svg"
-        v_svg.write_text(badges.verdict_badge_svg(verdict), encoding="utf-8")
+        v_svg = badge_dir / "status.svg"
+        v_svg.write_text(badges.status_badge_svg(verdict), encoding="utf-8")
         written.append(v_svg)
-        r_json = badge_dir / "risk.json"
+        r_json = badge_dir / "score.json"
         r_json.write_text(
-            json.dumps(badges.risk_badge_json(risk), indent=2) + "\n",
+            json.dumps(badges.score_badge_json(risk), indent=2) + "\n",
             encoding="utf-8",
         )
         written.append(r_json)
-        r_svg = badge_dir / "risk.svg"
-        r_svg.write_text(badges.risk_badge_svg(risk), encoding="utf-8")
+        r_svg = badge_dir / "score.svg"
+        r_svg.write_text(badges.score_badge_svg(risk), encoding="utf-8")
         written.append(r_svg)
 
     if history_manifest is not None:
