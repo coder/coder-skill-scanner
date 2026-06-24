@@ -92,7 +92,7 @@ export const SkillTable: FC<SkillTableProps> = ({
             ).reduce((a, b) => a + b, 0);
             const srcHref = sourceRepoUrl(
               s.source_repo,
-              s.source_ref,
+              s.source_sha,
               s.skill_path,
             );
             const detailHref = `${detailLinkBase}/${s.namespace}/${s.slug}`;

@@ -105,7 +105,7 @@ export const SkillDetailPage: FC = () => {
   );
   const srcHref = sourceRepoUrl(
     skill.source_repo,
-    skill.source_ref,
+    skill.source_sha,
     skill.skill_path,
   );
 
