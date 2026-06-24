@@ -2,6 +2,14 @@
 
 The v1 contract:
 
+- ``api/v1/index.json``                 Discovery manifest. Lists the URL
+                                        templates (with ``{namespace}`` and
+                                        ``{slug}`` placeholders) needed to
+                                        address every other endpoint, plus the
+                                        current ``(namespace, slug)`` pairs.
+                                        Bootstrap entry point for third-party
+                                        consumers - no other fetch required to
+                                        learn the URL conventions.
 - ``api/v1/skills.json``                Compact index of every skill in the most
                                         recent scan: namespace, slug, verdict,
                                         risk_score, source_repo, source_sha,
@@ -176,6 +184,44 @@ def build_history_index(
     }
 
 
+def build_v1_index(
+    report: dict[str, Any],
+    *,
+    public_base_url: str,
+    has_history: bool,
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    """Build the ``api/v1/index.json`` discovery manifest.
+
+    The manifest lists the URL templates a third-party consumer needs to
+    address every endpoint without first parsing ``skills.json``, plus the
+    current ``(namespace, slug)`` pairs so a programmatic consumer can iterate
+    without a second fetch. Field shapes are part of the v1 contract.
+    """
+    root = public_base_url.rstrip("/")
+    api_root = f"{root}/api/v1"
+    skills = sorted(
+        ({"namespace": s["namespace"], "slug": s["slug"]} for s in report.get("skills", [])),
+        key=lambda s: (s["namespace"], s["slug"]),
+    )
+    urls = {
+        "skills_index": f"{api_root}/skills.json",
+        "skill_detail": f"{api_root}/skills/{{namespace}}/{{slug}}.json",
+        "status_badge_json": f"{api_root}/skills/{{namespace}}/{{slug}}/badge/status.json",
+        "status_badge_svg": f"{api_root}/skills/{{namespace}}/{{slug}}/badge/status.svg",
+        "score_badge_json": f"{api_root}/skills/{{namespace}}/{{slug}}/badge/score.json",
+        "score_badge_svg": f"{api_root}/skills/{{namespace}}/{{slug}}/badge/score.svg",
+    }
+    if has_history:
+        urls["history"] = f"{api_root}/history.json"
+    return {
+        "schema_version": API_SCHEMA_VERSION,
+        "generated_at": generated_at or report.get("generated_at", ""),
+        "urls": urls,
+        "skills": skills,
+    }
+
+
 def write_api_v1(
     report: dict[str, Any],
     *,
@@ -194,6 +240,15 @@ def write_api_v1(
     skills_index_path = output_dir / "skills.json"
     skills_index_path.write_text(json.dumps(skills_index, indent=2) + "\n", encoding="utf-8")
     written.append(skills_index_path)
+
+    discovery = build_v1_index(
+        report,
+        public_base_url=public_base_url,
+        has_history=history_manifest is not None,
+    )
+    discovery_path = output_dir / "index.json"
+    discovery_path.write_text(json.dumps(discovery, indent=2) + "\n", encoding="utf-8")
+    written.append(discovery_path)
 
     for skill in report.get("skills", []):
         ns = _check_safe_segment("namespace", skill["namespace"])

@@ -133,8 +133,9 @@ def test_write_api_v1_writes_full_tree(tmp_path: Path):
         history_manifest={"entries": []},
     )
 
-    # 1 (skills.json) + 3 skills * (1 detail + 4 badge files) + 1 (history.json) = 17.
-    assert len(written) == 17
+    # 1 (skills.json) + 1 (index.json) + 3 skills * (1 detail + 4 badge files) +
+    # 1 (history.json) = 18.
+    assert len(written) == 18
 
     # Index validates as parseable JSON, has the right schema_version.
     idx = json.loads((tmp_path / "skills.json").read_text())
@@ -167,8 +168,8 @@ def test_write_api_v1_skips_history_when_not_provided(tmp_path: Path):
     written = api.write_api_v1(
         report, output_dir=tmp_path, public_base_url="https://example.com/scanner"
     )
-    # 1 (skills.json) + 1 * (1 detail + 4 badge files) = 6
-    assert len(written) == 6
+    # 1 (skills.json) + 1 (index.json) + 1 * (1 detail + 4 badge files) = 7
+    assert len(written) == 7
     assert not (tmp_path / "history.json").exists()
 
 
@@ -188,3 +189,49 @@ def test_write_api_v1_rejects_path_traversal_slug(tmp_path: Path):
         api.write_api_v1(
             report, output_dir=tmp_path, public_base_url="https://example.com/x"
         )
+
+
+def test_build_v1_index_lists_url_templates_and_skills():
+    """The discovery manifest at /api/v1/index.json must let a third-party
+    consumer address every endpoint without first fetching skills.json."""
+    report = _report(
+        [
+            _skill("templates"),
+            _skill("modules"),
+            _skill("setup", verdict="malicious", risk=100),
+        ]
+    )
+    manifest = api.build_v1_index(
+        report,
+        public_base_url="https://example.com/scanner",
+        has_history=True,
+    )
+
+    assert manifest["schema_version"] == 1
+    # URL templates use {namespace} and {slug} placeholders, anchored at the
+    # caller-supplied base; consumers can substitute without knowing layout.
+    urls = manifest["urls"]
+    assert urls["skills_index"] == "https://example.com/scanner/api/v1/skills.json"
+    assert urls["skill_detail"].endswith("/api/v1/skills/{namespace}/{slug}.json")
+    assert urls["status_badge_svg"].endswith(
+        "/api/v1/skills/{namespace}/{slug}/badge/status.svg"
+    )
+    assert urls["score_badge_json"].endswith(
+        "/api/v1/skills/{namespace}/{slug}/badge/score.json"
+    )
+    # history URL is included only when a history manifest was supplied.
+    assert urls["history"].endswith("/api/v1/history.json")
+    # Skill list is sorted and contains only namespace/slug pairs.
+    assert manifest["skills"] == [
+        {"namespace": "coder", "slug": "modules"},
+        {"namespace": "coder", "slug": "setup"},
+        {"namespace": "coder", "slug": "templates"},
+    ]
+
+
+def test_build_v1_index_omits_history_url_when_no_history():
+    report = _report([_skill("modules")])
+    manifest = api.build_v1_index(
+        report, public_base_url="https://example.com/scanner", has_history=False
+    )
+    assert "history" not in manifest["urls"]
