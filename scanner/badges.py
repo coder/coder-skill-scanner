@@ -1,0 +1,138 @@
+"""SVG and shields.io-endpoint JSON badge generators.
+
+The JSON shape matches shields.io's ``endpoint`` badge contract so a consumer
+can embed ``https://img.shields.io/endpoint?url=<our-json-url>`` directly in
+a README. The SVG endpoint generates a flat-style badge inline (no shields.io
+dependency, no network hop) for sites that want the badge served from the
+same origin as the rest of the report.
+
+Stability: ``schemaVersion``, ``label``, ``message``, ``color``, and
+``cacheSeconds`` are part of the v1 contract. The SVG layout (two-rect flat
+badge, 11px Verdana) is the contract for ``.svg`` consumers.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+SHIELDS_SCHEMA_VERSION = 1
+
+# Cache hint for shields.io: 5 minutes lines up with the registry-server
+# proxy's cache TTL and the catalogue refresh cadence.
+DEFAULT_CACHE_SECONDS = 300
+
+# Shields.io color names.
+_VERDICT_COLORS: dict[str, str] = {
+    "clean": "brightgreen",
+    "suspicious": "yellow",
+    "malicious": "red",
+    "unknown": "lightgrey",
+}
+
+# Bands for the risk score badge color. Matches the verdict cutoffs in
+# ``config.yaml`` (51 = HIGH/suspicious, 81 = CRITICAL/malicious).
+def _risk_color(score: int) -> str:
+    if score >= 81:
+        return "red"
+    if score >= 51:
+        return "yellow"
+    if score >= 21:
+        return "yellowgreen"
+    return "brightgreen"
+
+
+# Hex equivalents used for the SVG renderer. Shields.io's `?color=` accepts
+# names; the inline SVG renderer needs raw hex.
+_NAMED_HEX: dict[str, str] = {
+    "brightgreen": "#4c1",
+    "green": "#97ca00",
+    "yellowgreen": "#a4a61d",
+    "yellow": "#dfb317",
+    "orange": "#fe7d37",
+    "red": "#e05d44",
+    "lightgrey": "#9f9f9f",
+    "blue": "#007ec6",
+}
+
+
+def verdict_badge_json(verdict: str) -> dict[str, Any]:
+    """Build the shields.io-endpoint payload for a verdict badge."""
+    return {
+        "schemaVersion": SHIELDS_SCHEMA_VERSION,
+        "label": "skill scan",
+        "message": verdict,
+        "color": _VERDICT_COLORS.get(verdict, "lightgrey"),
+        "cacheSeconds": DEFAULT_CACHE_SECONDS,
+    }
+
+
+def risk_badge_json(risk_score: int) -> dict[str, Any]:
+    """Build the shields.io-endpoint payload for a risk-score badge."""
+    return {
+        "schemaVersion": SHIELDS_SCHEMA_VERSION,
+        "label": "risk score",
+        "message": f"{risk_score}/100",
+        "color": _risk_color(risk_score),
+        "cacheSeconds": DEFAULT_CACHE_SECONDS,
+    }
+
+
+def _estimate_text_width(text: str) -> int:
+    """Conservative estimate of rendered text width in pixels for 11px Verdana.
+
+    Shields.io measures glyphs precisely; we just need stable, deterministic
+    output. ~7px/char rounded up with a small padding works well in practice
+    across short labels and numeric scores.
+    """
+    return max(8, int(len(text) * 7) + 10)
+
+
+def _flat_badge_svg(label: str, message: str, color_hex: str) -> str:
+    """Render a two-rect flat-style badge as inline SVG."""
+    label_w = _estimate_text_width(label)
+    message_w = _estimate_text_width(message)
+    total_w = label_w + message_w
+    label_mid = label_w / 2
+    message_mid = label_w + message_w / 2
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'width="{total_w}" height="20" role="img" '
+        f'aria-label="{label}: {message}">'
+        f"<title>{label}: {message}</title>"
+        '<linearGradient id="s" x2="0" y2="100%">'
+        '<stop offset="0" stop-color="#bbb" stop-opacity=".1"/>'
+        '<stop offset="1" stop-opacity=".1"/>'
+        "</linearGradient>"
+        f'<clipPath id="r"><rect width="{total_w}" height="20" rx="3" fill="#fff"/></clipPath>'
+        '<g clip-path="url(#r)">'
+        f'<rect width="{label_w}" height="20" fill="#555"/>'
+        f'<rect x="{label_w}" width="{message_w}" height="20" fill="{color_hex}"/>'
+        f'<rect width="{total_w}" height="20" fill="url(#s)"/>'
+        "</g>"
+        '<g fill="#fff" text-anchor="middle" '
+        'font-family="Verdana,Geneva,DejaVu Sans,sans-serif" '
+        'text-rendering="geometricPrecision" font-size="110">'
+        f'<text aria-hidden="true" x="{label_mid * 10:.0f}" y="150" '
+        'fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="'
+        f'{(label_w - 10) * 10:.0f}">{label}</text>'
+        f'<text x="{label_mid * 10:.0f}" y="140" transform="scale(.1)" '
+        f'fill="#fff" textLength="{(label_w - 10) * 10:.0f}">{label}</text>'
+        f'<text aria-hidden="true" x="{message_mid * 10:.0f}" y="150" '
+        'fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="'
+        f'{(message_w - 10) * 10:.0f}">{message}</text>'
+        f'<text x="{message_mid * 10:.0f}" y="140" transform="scale(.1)" '
+        f'fill="#fff" textLength="{(message_w - 10) * 10:.0f}">{message}</text>'
+        "</g></svg>"
+    )
+
+
+def verdict_badge_svg(verdict: str) -> str:
+    """Render the verdict badge as a self-contained SVG string."""
+    color = _NAMED_HEX[_VERDICT_COLORS.get(verdict, "lightgrey")]
+    return _flat_badge_svg("skill scan", verdict, color)
+
+
+def risk_badge_svg(risk_score: int) -> str:
+    """Render the risk-score badge as a self-contained SVG string."""
+    color = _NAMED_HEX[_risk_color(risk_score)]
+    return _flat_badge_svg("risk score", f"{risk_score}/100", color)
