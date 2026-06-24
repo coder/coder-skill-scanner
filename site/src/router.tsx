@@ -20,4 +20,7 @@ export const router = createBrowserRouter(
       <Route path="*" element={<NotFoundPage />} />
     </Route>,
   ),
+  // basename mirrors Vite's `base` config so SPA routes resolve correctly
+  // when the site is served under a project-page prefix (e.g. /coder-skill-scanner/).
+  { basename: import.meta.env.BASE_URL },
 );

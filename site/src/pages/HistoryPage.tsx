@@ -18,7 +18,10 @@ export const HistoryPage: FC = () => {
         <div className="mt-2 text-xs text-coder-neutral-400">
           History begins populating after the first scheduled scan. The latest
           snapshot is always available as the{" "}
-          <a className="text-coder-sky hover:underline" href="/latest.json">
+          <a
+            className="text-coder-sky hover:underline"
+            href={`${import.meta.env.BASE_URL}latest.json`}
+          >
             raw JSON report
           </a>
           .

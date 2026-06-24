@@ -14,11 +14,15 @@ import react from "@vitejs/plugin-react-swc";
  */
 const REPORT_REGEX = /^\/(latest\.json|schema\.json|history\/.+\.json)$/;
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const upstream = env.VITE_REPORT_UPSTREAM || "http://localhost:8765";
 
   return {
+    // GitHub Pages serves this site at /coder-skill-scanner/. Production
+    // builds emit asset URLs relative to that base. Dev keeps the default
+    // `/` so the local Vite server and its report proxy keep working.
+    base: command === "build" ? "/coder-skill-scanner/" : "/",
     plugins: [react()],
     server: {
       host: "0.0.0.0",
