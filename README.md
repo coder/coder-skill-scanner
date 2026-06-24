@@ -62,27 +62,6 @@ Vite's dev proxy (see `site/vite.config.ts`) forwards `latest.json`,
 app sees real scanner output without CORS shenanigans. SPA routes such
 as `/skills/coder/setup` stay client-side.
 
-## One-time setup on the repo
-
-Three things have to be configured once on the GitHub repo before the
-scheduled scan publishes a useful result:
-
-1. **Settings > Pages**: set source to "GitHub Actions". The
-   `publish-pages` job in `scan.yaml` will fail until this is set.
-2. **Settings > Actions**: workflow permissions "Read and write" so
-   `publish-release` can create the rolling `latest` release.
-3. **Settings > Secrets and variables > Actions > Secrets**: add the
-   LLM credential matching the provider in `config.yaml`'s
-   `scanners.skillspector.llm.provider`. For the default `anthropic`
-   provider this is `ANTHROPIC_API_KEY` (from
-   [console.anthropic.com](https://console.anthropic.com); this is a
-   separate billing line from Coder usage because SkillSpector cannot
-   be routed through aibridge today). Without the secret, the scan
-   still runs but SkillSpector falls back to `--no-llm` static-only
-   mode and precision drops. The optional `SLACK_WEBHOOK_URL` secret
-   enables the `notify-slack-on-failure` job; without it that job is
-   a no-op.
-
 ## Repo layout
 
 ```text
@@ -120,9 +99,10 @@ This scanner is data-driven. To run it against a different registry:
    "GitHub Actions").
 4. Set Actions workflow permissions to "Read and write" so the
    publish-release job can create releases.
-5. To enable the LLM semantic pass, add the credential secret per
-   "One-time setup on the repo" above, AND confirm
-   `.github/workflows/scan.yaml` exports the secret into the
+5. To enable the LLM semantic pass, set the credential secret matching
+   `config.yaml`'s `scanners.skillspector.llm.provider` on your fork
+   (for the default `anthropic` provider, `ANTHROPIC_API_KEY`), AND
+   confirm `.github/workflows/scan.yaml` exports that secret into the
    SkillSpector step. Static-only mode (without the secret) is the
    default and works out of the box.
 6. Enable Actions.
