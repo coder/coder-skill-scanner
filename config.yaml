@@ -33,7 +33,7 @@ scanners:
     # the version in two places. Dependabot does not parse this file,
     # so a bumper bot lives outside the loop until the upstream
     # publishes to PyPI and the pin can move into pyproject.toml.
-    pin: "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@2eb844780ab163f01468ecf142c40a2ec0fcaec0"
+    pin: "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@7bc9c0feb663375ced6e7436008d082e6e3486ea"
     # Empty so .github/workflows/scan.yaml can append --no-llm
     # dynamically based on whether the LLM credential secret is set.
     flags: []
