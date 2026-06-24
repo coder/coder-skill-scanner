@@ -1,7 +1,9 @@
 import type { HistoryIndex, Report } from "../types/report";
 
 async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const url = path.startsWith("/") ? path : `/${path}`;
+  const url = path.startsWith("/")
+    ? path
+    : `${import.meta.env.BASE_URL}${path}`;
   const res = await fetch(url, { cache: "no-cache", signal });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} fetching ${path}`);

@@ -34,7 +34,10 @@ export const OverviewPage: FC = () => {
       <ErrorState error={error}>
         <div className="mt-2 text-xs text-coder-neutral-400">
           Try fetching the{" "}
-          <a className="text-coder-sky hover:underline" href="/latest.json">
+          <a
+            className="text-coder-sky hover:underline"
+            href={`${import.meta.env.BASE_URL}latest.json`}
+          >
             raw JSON report
           </a>{" "}
           directly.

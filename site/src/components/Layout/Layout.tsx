@@ -22,16 +22,16 @@ type UtilityLink = {
 };
 
 const utilityNav: UtilityLink[] = [
-  { href: "/latest.json", label: "Raw JSON" },
-  { href: "/schema.json", label: "Schema" },
+  { href: `${import.meta.env.BASE_URL}latest.json`, label: "Raw JSON" },
+  { href: `${import.meta.env.BASE_URL}schema.json`, label: "Schema" },
   { href: "https://github.com/coder/coder-skill-scanner", label: "GitHub", external: true },
   { href: "https://registry.coder.com", label: "Registry", external: true },
 ];
 
 const footerLinks: UtilityLink[] = [
-  { href: "/latest.json", label: "Raw JSON" },
-  { href: "/schema.json", label: "Schema (v1)" },
-  { href: "/history", label: "History" },
+  { href: `${import.meta.env.BASE_URL}latest.json`, label: "Raw JSON" },
+  { href: `${import.meta.env.BASE_URL}schema.json`, label: "Schema (v1)" },
+  { href: `${import.meta.env.BASE_URL}history`, label: "History" },
   { href: "https://github.com/coder/coder-skill-scanner", label: "Source", external: true },
   {
     href: "https://github.com/coder/coder-skill-scanner/blob/main/LICENSE",
@@ -62,7 +62,7 @@ export const Layout: FC = () => {
             aria-label="Coder Skill Scanner home"
           >
             <img
-              src="/logo.png"
+              src={`${import.meta.env.BASE_URL}logo.png`}
               alt="Coder Skill Scanner"
               /* The source image is 2048x139 (aspect ~14.7). Without a
                  max-width it renders ~412px wide at h-7, overflowing
