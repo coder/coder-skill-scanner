@@ -20,10 +20,13 @@ const REPORT_REGEX = /^\/(latest\.json|schema\.json|history\/.+\.json)$/;
  * Resolve the production `base` path. Lookup priority:
  *   1. `VITE_BASE_PATH` env (explicit override; useful for local prod
  *      builds when you want to mimic a specific Pages deployment).
- *   2. The repo name parsed from `GITHUB_REPOSITORY` (CI default; a fork
- *      named `<owner>/<repo>` gets `/<repo>/` automatically with zero
- *      config).
- *   3. `/` (apex / local-build fallback).
+ *   2. A `public/CNAME` file. When the site is published to a custom
+ *      Pages domain, GitHub serves it at the apex of that domain so
+ *      assets must resolve at `/`, not under `/<repo>/`.
+ *   3. The repo name parsed from `GITHUB_REPOSITORY` (CI default; a fork
+ *      named `<owner>/<repo>` without a custom domain gets `/<repo>/`
+ *      automatically with zero config).
+ *   4. `/` (apex / local-build fallback).
  *
  * Always returns a value with leading and trailing slashes so Vite's
  * own asset URL logic does not have to special-case the input.
@@ -33,6 +36,9 @@ function resolveProductionBase(): string {
   if (explicit) {
     const prefixed = explicit.startsWith("/") ? explicit : `/${explicit}`;
     return prefixed.endsWith("/") ? prefixed : `${prefixed}/`;
+  }
+  if (fs.existsSync(path.resolve("public", "CNAME"))) {
+    return "/";
   }
   const repo = process.env.GITHUB_REPOSITORY?.split("/")[1]?.trim();
   if (repo) return `/${repo}/`;
