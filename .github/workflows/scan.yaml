@@ -322,6 +322,17 @@ jobs:
 
           # Regenerate the manifest so the React app sees every retained run.
           scanner index-history pages/history --output pages/history/index.json
+
+          # Build the stable v1 API surface (skills.json, per-skill detail,
+          # badge endpoints, history.json). Derive the public base URL from
+          # the runtime publishing context so forks get the right prefix
+          # automatically; the Vite build uses the same logic.
+          repo_short="${GITHUB_REPOSITORY#*/}"
+          public_base_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${repo_short}"
+          scanner build-api-v1 latest.json \
+            --output pages/api/v1 \
+            --public-base-url "${public_base_url}" \
+            --history-index pages/history/index.json
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

@@ -21,7 +21,7 @@ from typing import Any
 import click
 import yaml
 
-from . import __version__, aggregate, combine, history
+from . import __version__, aggregate, api, combine, history
 from . import enumerate as enumerate_mod
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -310,6 +310,64 @@ def index_history_cmd(history_dir: Path, output: Path | None) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(payload, encoding="utf-8")
     click.echo(f"wrote {target} ({len(manifest['entries'])} snapshots)")
+
+
+@main.command("build-api-v1")
+@click.argument(
+    "report_path",
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+)
+@click.option(
+    "--output",
+    "output_dir",
+    type=click.Path(path_type=Path, file_okay=False),
+    required=True,
+    help="Directory to write the api/v1 tree into. Created if missing.",
+)
+@click.option(
+    "--public-base-url",
+    required=True,
+    help=(
+        "Public URL the v1 API is served from (e.g. "
+        "https://coder.github.io/coder-skill-scanner). Used to build the "
+        "absolute report_url, source_tree, and badge links inside the JSON "
+        "payloads. No trailing /api/v1."
+    ),
+)
+@click.option(
+    "--history-index",
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+    default=None,
+    help=(
+        "Path to history/index.json. When provided, the command also writes "
+        "api/v1/history.json reshaped from that manifest."
+    ),
+)
+def build_api_v1_cmd(
+    report_path: Path,
+    output_dir: Path,
+    public_base_url: str,
+    history_index: Path | None,
+) -> None:
+    """Build the v1 public API tree from REPORT_PATH (typically latest.json).
+
+    Writes skills.json, per-skill detail JSONs, and four badge endpoints per
+    skill (verdict.json/svg, risk.json/svg). When --history-index is given,
+    also writes history.json reshaped into the API-v1 contract.
+    """
+    with report_path.open(encoding="utf-8") as fh:
+        report = json.load(fh)
+    history_manifest = None
+    if history_index is not None:
+        with history_index.open(encoding="utf-8") as fh:
+            history_manifest = json.load(fh)
+    written = api.write_api_v1(
+        report,
+        output_dir=output_dir,
+        public_base_url=public_base_url,
+        history_manifest=history_manifest,
+    )
+    click.echo(f"wrote {len(written)} files under {output_dir}")
 
 
 if __name__ == "__main__":

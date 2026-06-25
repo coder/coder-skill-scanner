@@ -39,6 +39,49 @@ Stable URLs, no auth required:
 + Schema: `https://coder.github.io/coder-skill-scanner/schema.json` (v1)
 + Per-scan history (JSON): `https://coder.github.io/coder-skill-scanner/history/index.json`
 
+## Public API (v1)
+
+Under `/api/v1/`, every URL is constructible from `(namespace, slug)` alone
+— no lookup against the index is required to render a badge or read a
+single skill. Field names and URL shapes are committed to the `v1`
+stability contract; breaking changes move to a `v2` prefix.
+
+| URL | Shape | Use |
+| --- | --- | --- |
+| `/api/v1/index.json` | discovery manifest: URL templates + current `(ns, slug)` pairs | bootstrap a third-party consumer |
+| `/api/v1/skills.json` | compact index of every skill | listing / cache warmer |
+| `/api/v1/skills/<ns>/<slug>.json` | per-skill detail (reasons, findings, `links` block) | per-skill consumer |
+| `/api/v1/skills/<ns>/<slug>/badge/status.json` | shields.io endpoint payload | `img.shields.io/endpoint?url=...` |
+| `/api/v1/skills/<ns>/<slug>/badge/status.svg` | inline SVG | direct embed |
+| `/api/v1/skills/<ns>/<slug>/badge/score.json` | shields.io endpoint payload | same |
+| `/api/v1/skills/<ns>/<slug>/badge/score.svg` | inline SVG | direct embed |
+| `/api/v1/history.json` | reshape of history with absolute report URLs | history consumer |
+
+Two badges per skill:
+
++ **`status`** — the categorical scan outcome (`clean`, `suspicious`,
+  `malicious`, `unknown`). Colour follows the verdict 1:1.
++ **`score`** — the numeric SkillSpector risk score (`0/100` … `100/100`).
+  Colour is banded at the same 21 / 51 / 81 cutoffs the verdict policy
+  uses.
+
+Embed a status badge in a README:
+
+```markdown
+![skill scan](https://coder.github.io/coder-skill-scanner/api/v1/skills/coder/setup/badge/status.svg)
+```
+
+Or via shields.io if you want their renderer:
+
+```markdown
+![skill scan](https://img.shields.io/endpoint?url=https://coder.github.io/coder-skill-scanner/api/v1/skills/coder/setup/badge/status.json)
+```
+
+For a fork, swap the host: `https://<owner>.github.io/<repo>/api/v1/...`.
+The scanner derives the public base URL from `$GITHUB_REPOSITORY` at
+publish time, so the same URL pattern is correct for any fork without
+config changes.
+
 ## Running locally
 
 Requires Python 3.12+, Node 22+ (via `mise`), pnpm, and `git`.

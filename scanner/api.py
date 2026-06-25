@@ -1,0 +1,292 @@
+"""Build the v1 public API surface from a generated ``latest.json``.
+
+The v1 contract:
+
+- ``api/v1/index.json``                 Discovery manifest. Lists the URL
+                                        templates (with ``{namespace}`` and
+                                        ``{slug}`` placeholders) needed to
+                                        address every other endpoint, plus the
+                                        current ``(namespace, slug)`` pairs.
+                                        Bootstrap entry point for third-party
+                                        consumers - no other fetch required to
+                                        learn the URL conventions.
+- ``api/v1/skills.json``                Compact index of every skill in the most
+                                        recent scan: namespace, slug, verdict,
+                                        risk_score, source_repo, source_sha,
+                                        scanned_at. Lightweight enough to fetch
+                                        on every page render.
+- ``api/v1/skills/<ns>/<slug>.json``    Per-skill detail with the same fields
+                                        plus reasons, findings by severity and
+                                        rule, and a ``links`` object pointing
+                                        at the badge endpoints and the
+                                        immutable source-tree URL.
+- ``api/v1/skills/<ns>/<slug>/badge/status.{json,svg}``
+                                        Categorical scan-outcome badge
+                                        (clean/suspicious/malicious/unknown).
+                                        Directly addressable from the
+                                        ``(namespace, slug)`` pair - no detail
+                                        fetch required.
+- ``api/v1/skills/<ns>/<slug>/badge/score.{json,svg}``
+                                        Numeric risk-score badge (0-100,
+                                        colour-banded). Same direct-addressing
+                                        contract as ``status``.
+- ``api/v1/history.json``               Reshape of ``history/index.json`` into
+                                        a versioned shape with absolute
+                                        ``report_url`` fields so consumers do
+                                        not have to know the Pages layout.
+
+Stability: once shipped, ``v1`` field names and shapes do not change. New
+optional fields are allowed. Removed or renamed fields require a ``v2`` prefix
+with a deprecation window on ``v1``.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from . import badges
+
+API_SCHEMA_VERSION = 1
+
+# Filesystem-safe identifier shape for ``namespace`` and ``slug`` segments.
+# Skill IDs in the registry are kebab-case ASCII; rejecting anything else here
+# is defence-in-depth against a malformed report writing outside ``output_dir``
+# via ``../`` or absolute paths.
+_SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def _check_safe_segment(kind: str, value: str) -> str:
+    """Return ``value`` unchanged if it is a safe path segment, else raise."""
+    if not isinstance(value, str) or not _SAFE_SEGMENT.fullmatch(value):
+        raise ValueError(f"unsafe {kind} segment: {value!r}")
+    return value
+
+
+def _source_tree_url(skill: dict[str, Any]) -> str:
+    """Return the immutable ``github.com/<repo>/tree/<sha>/<path>`` link.
+
+    Always uses ``source_sha`` (not ``source_ref``) so the link survives
+    upstream branch movement. Falls back to the bare repo URL when the SHA is
+    missing.
+    """
+    repo = skill.get("source_repo")
+    sha = skill.get("source_sha")
+    path = (skill.get("skill_path") or "").lstrip("/")
+    if not repo:
+        return ""
+    if not sha:
+        return f"https://github.com/{repo}"
+    suffix = f"/{path}" if path else ""
+    return f"https://github.com/{repo}/tree/{sha}{suffix}"
+
+
+def _badge_links(public_base_url: str, namespace: str, slug: str) -> dict[str, str]:
+    """Return the four badge URLs for a single skill."""
+    root = public_base_url.rstrip("/")
+    return {
+        "status_badge_json": f"{root}/api/v1/skills/{namespace}/{slug}/badge/status.json",
+        "status_badge_svg": f"{root}/api/v1/skills/{namespace}/{slug}/badge/status.svg",
+        "score_badge_json": f"{root}/api/v1/skills/{namespace}/{slug}/badge/score.json",
+        "score_badge_svg": f"{root}/api/v1/skills/{namespace}/{slug}/badge/score.svg",
+    }
+
+
+def _skill_index_entry(skill: dict[str, Any]) -> dict[str, Any]:
+    """Compact shape for the index."""
+    ss = (skill.get("scanners") or {}).get("skillspector") or {}
+    return {
+        "namespace": skill["namespace"],
+        "slug": skill["slug"],
+        "verdict": skill["verdict"],
+        "risk_score": ss.get("risk_score", 0),
+        "source_repo": skill.get("source_repo", ""),
+        "source_sha": skill.get("source_sha", ""),
+        "scanned_at": skill.get("scanned_at", ""),
+    }
+
+
+def build_skills_index(
+    report: dict[str, Any],
+    *,
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    """Build the ``api/v1/skills.json`` payload."""
+    skills = sorted(
+        (_skill_index_entry(s) for s in report.get("skills", [])),
+        key=lambda r: (r["namespace"], r["slug"]),
+    )
+    return {
+        "schema_version": API_SCHEMA_VERSION,
+        "generated_at": generated_at or report.get("generated_at", ""),
+        "summary": report.get("summary", {}),
+        "skills": skills,
+    }
+
+
+def build_skill_detail(
+    skill: dict[str, Any],
+    *,
+    public_base_url: str,
+    report_url: str,
+) -> dict[str, Any]:
+    """Build a single ``api/v1/skills/<ns>/<slug>.json`` payload."""
+    ss = (skill.get("scanners") or {}).get("skillspector") or {}
+    return {
+        "schema_version": API_SCHEMA_VERSION,
+        "namespace": skill["namespace"],
+        "slug": skill["slug"],
+        "verdict": skill["verdict"],
+        "risk_score": ss.get("risk_score", 0),
+        "risk_severity": ss.get("risk_severity", "unknown"),
+        "source_repo": skill.get("source_repo", ""),
+        "source_ref": skill.get("source_ref", ""),
+        "source_sha": skill.get("source_sha", ""),
+        "skill_path": skill.get("skill_path", ""),
+        "scanned_at": skill.get("scanned_at", ""),
+        "reasons": skill.get("reasons", []),
+        "findings_by_severity": ss.get("findings_by_severity", {}),
+        "findings_by_rule": ss.get("findings_by_rule", []),
+        "links": {
+            "report": report_url,
+            "source_tree": _source_tree_url(skill),
+            **_badge_links(public_base_url, skill["namespace"], skill["slug"]),
+        },
+    }
+
+
+def build_history_index(
+    history_manifest: dict[str, Any],
+    *,
+    public_base_url: str,
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    """Reshape ``history/index.json`` into the versioned API shape."""
+    root = public_base_url.rstrip("/")
+    entries = []
+    for entry in history_manifest.get("entries", []):
+        rel = entry.get("path", "").lstrip("/")
+        entries.append(
+            {
+                "stamp": entry.get("stamp", ""),
+                "generated_at": entry.get("generated_at", ""),
+                "summary": entry.get("summary", {}),
+                "report_url": f"{root}/{rel}" if rel else "",
+            }
+        )
+    return {
+        "schema_version": API_SCHEMA_VERSION,
+        "generated_at": generated_at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "entries": entries,
+    }
+
+
+def build_v1_index(
+    report: dict[str, Any],
+    *,
+    public_base_url: str,
+    has_history: bool,
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    """Build the ``api/v1/index.json`` discovery manifest.
+
+    The manifest lists the URL templates a third-party consumer needs to
+    address every endpoint without first parsing ``skills.json``, plus the
+    current ``(namespace, slug)`` pairs so a programmatic consumer can iterate
+    without a second fetch. Field shapes are part of the v1 contract.
+    """
+    root = public_base_url.rstrip("/")
+    api_root = f"{root}/api/v1"
+    skills = sorted(
+        ({"namespace": s["namespace"], "slug": s["slug"]} for s in report.get("skills", [])),
+        key=lambda s: (s["namespace"], s["slug"]),
+    )
+    urls = {
+        "skills_index": f"{api_root}/skills.json",
+        "skill_detail": f"{api_root}/skills/{{namespace}}/{{slug}}.json",
+        "status_badge_json": f"{api_root}/skills/{{namespace}}/{{slug}}/badge/status.json",
+        "status_badge_svg": f"{api_root}/skills/{{namespace}}/{{slug}}/badge/status.svg",
+        "score_badge_json": f"{api_root}/skills/{{namespace}}/{{slug}}/badge/score.json",
+        "score_badge_svg": f"{api_root}/skills/{{namespace}}/{{slug}}/badge/score.svg",
+    }
+    if has_history:
+        urls["history"] = f"{api_root}/history.json"
+    return {
+        "schema_version": API_SCHEMA_VERSION,
+        "generated_at": generated_at or report.get("generated_at", ""),
+        "urls": urls,
+        "skills": skills,
+    }
+
+
+def write_api_v1(
+    report: dict[str, Any],
+    *,
+    output_dir: Path,
+    public_base_url: str,
+    history_manifest: dict[str, Any] | None = None,
+) -> list[Path]:
+    """Write the full v1 API tree under ``output_dir`` and return paths written."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+
+    report_url = f"{public_base_url.rstrip('/')}/latest.json"
+
+    skills_index = build_skills_index(report)
+    skills_index_path = output_dir / "skills.json"
+    skills_index_path.write_text(json.dumps(skills_index, indent=2) + "\n", encoding="utf-8")
+    written.append(skills_index_path)
+
+    discovery = build_v1_index(
+        report,
+        public_base_url=public_base_url,
+        has_history=history_manifest is not None,
+    )
+    discovery_path = output_dir / "index.json"
+    discovery_path.write_text(json.dumps(discovery, indent=2) + "\n", encoding="utf-8")
+    written.append(discovery_path)
+
+    for skill in report.get("skills", []):
+        ns = _check_safe_segment("namespace", skill["namespace"])
+        slug = _check_safe_segment("slug", skill["slug"])
+        detail = build_skill_detail(skill, public_base_url=public_base_url, report_url=report_url)
+        detail_path = output_dir / "skills" / ns / f"{slug}.json"
+        detail_path.parent.mkdir(parents=True, exist_ok=True)
+        detail_path.write_text(json.dumps(detail, indent=2) + "\n", encoding="utf-8")
+        written.append(detail_path)
+
+        badge_dir = detail_path.parent / slug / "badge"
+        badge_dir.mkdir(parents=True, exist_ok=True)
+        verdict = skill["verdict"]
+        ss = (skill.get("scanners") or {}).get("skillspector") or {}
+        risk = int(ss.get("risk_score", 0))
+        v_json = badge_dir / "status.json"
+        v_json.write_text(
+            json.dumps(badges.status_badge_json(verdict), indent=2) + "\n",
+            encoding="utf-8",
+        )
+        written.append(v_json)
+        v_svg = badge_dir / "status.svg"
+        v_svg.write_text(badges.status_badge_svg(verdict), encoding="utf-8")
+        written.append(v_svg)
+        r_json = badge_dir / "score.json"
+        r_json.write_text(
+            json.dumps(badges.score_badge_json(risk), indent=2) + "\n",
+            encoding="utf-8",
+        )
+        written.append(r_json)
+        r_svg = badge_dir / "score.svg"
+        r_svg.write_text(badges.score_badge_svg(risk), encoding="utf-8")
+        written.append(r_svg)
+
+    if history_manifest is not None:
+        history_api = build_history_index(history_manifest, public_base_url=public_base_url)
+        history_path = output_dir / "history.json"
+        history_path.write_text(json.dumps(history_api, indent=2) + "\n", encoding="utf-8")
+        written.append(history_path)
+
+    return written
