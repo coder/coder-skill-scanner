@@ -13,14 +13,43 @@ badge, 11px Verdana) is the contract for ``.svg`` consumers.
 
 from __future__ import annotations
 
+import logging
+import urllib.parse
+import urllib.request
 from typing import Any
 from xml.sax.saxutils import escape as _xml_escape
+
+log = logging.getLogger(__name__)
 
 SHIELDS_SCHEMA_VERSION = 1
 
 # Cache hint for shields.io: 5 minutes lines up with the registry-server
 # proxy's cache TTL and the catalogue refresh cadence.
 DEFAULT_CACHE_SECONDS = 300
+
+# The canonical visual style for badges served from this scanner. Picked over
+# ``flat`` because the taller pill reads better in the registry's dark UI and
+# differentiates a scan signal from the more numerous npm-style version pills.
+# All four shields.io built-in styles work; if the canonical default ever
+# changes, this constant moves with it.
+DEFAULT_BADGE_STYLE = "for-the-badge"
+
+# Where to ask shields.io for a rendered badge. We use the legacy ``static/v1``
+# endpoint because it takes label/message/color as query params directly, so
+# we don't have to URL-encode dashes the way the path-style endpoint requires.
+_SHIELDS_STATIC_ENDPOINT = "https://img.shields.io/static/v1"
+
+# Hard cap on how long we'll wait for shields.io before falling back. The
+# scheduled scan publishes once every six hours so a slow tail is okay, but a
+# dead shields.io should not stall the publish job.
+_SHIELDS_FETCH_TIMEOUT_SECONDS = 10
+
+# Identify ourselves to shields.io. Python's stock urllib UA gets blocked
+# with HTTP 403; a recognisable string also helps if shields.io ever
+# wants to reach out about traffic from this scanner.
+_SHIELDS_USER_AGENT = (
+    "coder-skill-scanner/1 (+https://scanner.registry.coder.com)"
+)
 
 # Shields.io color names.
 _VERDICT_COLORS: dict[str, str] = {
@@ -151,13 +180,76 @@ def _flat_badge_svg(label: str, message: str, color_hex: str) -> str:
     )
 
 
-def status_badge_svg(verdict: str) -> str:
-    """Render the status badge (categorical scan outcome) as inline SVG."""
-    color = _NAMED_HEX[_VERDICT_COLORS.get(verdict, "lightgrey")]
-    return _flat_badge_svg("skill scan", verdict, color)
+def fetch_shields_io_svg(
+    label: str,
+    message: str,
+    color: str,
+    *,
+    style: str = DEFAULT_BADGE_STYLE,
+    timeout: float = _SHIELDS_FETCH_TIMEOUT_SECONDS,
+) -> str | None:
+    """Ask shields.io to render a badge in the given style.
+
+    Returns the SVG bytes as a UTF-8 string on success, or ``None`` if the
+    request fails for any reason (network error, non-200 response, non-SVG
+    body). Callers fall back to the local :func:`_flat_badge_svg` renderer
+    so a publish never stalls on shields.io.
+    """
+    query = urllib.parse.urlencode(
+        {"label": label, "message": message, "color": color, "style": style}
+    )
+    url = f"{_SHIELDS_STATIC_ENDPOINT}?{query}"
+    # shields.io rejects Python's default ``Python-urllib/x.y`` UA with a 403,
+    # so we identify the scanner explicitly. Same User-Agent value we would
+    # use to scrape the catalogue.
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": _SHIELDS_USER_AGENT, "Accept": "image/svg+xml"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status != 200:
+                log.warning(
+                    "shields.io returned HTTP %s for %s", resp.status, url
+                )
+                return None
+            body = resp.read().decode("utf-8")
+    except Exception as exc:
+        log.warning("shields.io fetch failed for %s: %s", url, exc)
+        return None
+    if not body.lstrip().startswith("<svg"):
+        log.warning("shields.io returned a non-SVG body for %s", url)
+        return None
+    return body
 
 
-def score_badge_svg(risk_score: int) -> str:
-    """Render the score badge (numeric risk score) as inline SVG."""
-    color = _NAMED_HEX[_risk_color(risk_score)]
-    return _flat_badge_svg("risk score", f"{risk_score}/100", color)
+def status_badge_svg(verdict: str, *, style: str = DEFAULT_BADGE_STYLE) -> str:
+    """Render the status badge (categorical scan outcome) as an SVG string.
+
+    Tries shields.io first in the requested ``style`` so the registry and
+    third-party READMEs see byte-identical, canonical-style badges; falls
+    back to a self-contained ``flat`` rendering if shields.io is unreachable.
+    """
+    color_name = _VERDICT_COLORS.get(verdict, "lightgrey")
+    shielded = fetch_shields_io_svg(
+        "skill scan", verdict, color_name, style=style
+    )
+    if shielded is not None:
+        return shielded
+    return _flat_badge_svg("skill scan", verdict, _NAMED_HEX[color_name])
+
+
+def score_badge_svg(risk_score: int, *, style: str = DEFAULT_BADGE_STYLE) -> str:
+    """Render the score badge (numeric risk score) as an SVG string.
+
+    Same shields-first / inline-fallback behaviour as
+    :func:`status_badge_svg`.
+    """
+    color_name = _risk_color(risk_score)
+    message = f"{risk_score}/100"
+    shielded = fetch_shields_io_svg(
+        "risk score", message, color_name, style=style
+    )
+    if shielded is not None:
+        return shielded
+    return _flat_badge_svg("risk score", message, _NAMED_HEX[color_name])
