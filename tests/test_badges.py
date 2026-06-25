@@ -4,7 +4,21 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from scanner import badges
+
+
+@pytest.fixture(autouse=True)
+def _reset_shields_circuit_breaker():
+    """The shields.io fetch helper carries a per-run circuit breaker. Without
+    a reset between tests, a single fail-path test would leave the breaker
+    open and silently short-circuit every subsequent test - including the
+    ones that try to exercise the success path. Reset before each test so
+    every case starts from a clean slate."""
+    badges.reset_shields_circuit_breaker()
+    yield
+    badges.reset_shields_circuit_breaker()
 
 
 def test_status_badge_json_colors_by_state():
@@ -206,3 +220,36 @@ def test_score_badge_svg_passes_message_and_color_to_shields(monkeypatch):
         "color": "red",
         "style": badges.DEFAULT_BADGE_STYLE,
     }
+
+
+def test_shields_circuit_breaker_short_circuits_after_first_failure(monkeypatch):
+    """One slow shields.io run shouldn't add one timeout per badge to a
+    publish job. After the first failure, every subsequent call must
+    short-circuit to None without touching the network at all."""
+    call_count = {"n": 0}
+
+    def _boom(*_a, **_k):
+        call_count["n"] += 1
+        raise TimeoutError("network down")
+
+    monkeypatch.setattr(badges.urllib.request, "urlopen", _boom)
+
+    first = badges.fetch_shields_io_svg("skill scan", "clean", "brightgreen")
+    second = badges.fetch_shields_io_svg("skill scan", "suspicious", "yellow")
+    third = badges.fetch_shields_io_svg("risk score", "99/100", "red")
+
+    assert first is None
+    assert second is None
+    assert third is None
+    # Network was touched exactly once - subsequent calls short-circuit.
+    assert call_count["n"] == 1
+
+
+def test_shields_circuit_breaker_resets_for_next_run():
+    """The reset helper has to actually reset, otherwise tests can't
+    exercise the success path after a fail-path test sets the flag.
+    Production callers don't need it (each build-api-v1 is a fresh
+    process) but tests do."""
+    badges._shields_disabled_for_run = True
+    badges.reset_shields_circuit_breaker()
+    assert badges._shields_disabled_for_run is False
