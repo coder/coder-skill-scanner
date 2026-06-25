@@ -18,8 +18,24 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-DEFAULT_BASE = "https://coder.github.io/coder-skill-scanner"
+DEFAULT_BASE_FALLBACK = "https://coder.github.io/coder-skill-scanner"
 MAX_SNAPSHOTS = 120  # roughly 30 days at a 6h cadence.
+
+
+def _default_base() -> str:
+    """Return the canonical Pages URL for this repo.
+
+    Prefer ``site/public/CNAME`` when present so a custom-domain deploy
+    fetches prior history from the same origin it will publish to. Fall
+    back to the github.io project-page URL otherwise.
+    """
+    cname = Path("site/public/CNAME")
+    if cname.is_file():
+        for line in cname.read_text(encoding="utf-8").splitlines():
+            host = line.strip()
+            if host:
+                return f"https://{host}"
+    return DEFAULT_BASE_FALLBACK
 
 
 def _fetch(url: str, dest: Path) -> None:
@@ -28,7 +44,7 @@ def _fetch(url: str, dest: Path) -> None:
 
 
 def main(out_dir: str = "prior-history") -> int:
-    base = os.environ.get("PAGES_URL") or DEFAULT_BASE
+    base = os.environ.get("PAGES_URL") or _default_base()
     base = base.rstrip("/")
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

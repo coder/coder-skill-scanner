@@ -31,13 +31,17 @@ The registry's deploys are not gated on the scan result.
 
 Stable URLs, no auth required:
 
-+ Public site: `https://coder.github.io/coder-skill-scanner/`
-+ Per-skill detail: `https://coder.github.io/coder-skill-scanner/skills/<namespace>/<slug>`
-+ Run history: `https://coder.github.io/coder-skill-scanner/history`
-+ CDN-cached JSON: `https://coder.github.io/coder-skill-scanner/latest.json`
++ Public site: `https://scanner.registry.coder.com/`
++ Per-skill detail: `https://scanner.registry.coder.com/skills/<namespace>/<slug>`
++ Run history: `https://scanner.registry.coder.com/history`
++ CDN-cached JSON: `https://scanner.registry.coder.com/latest.json`
 + Tagged release: `https://github.com/coder/coder-skill-scanner/releases/latest/download/latest.json`
-+ Schema: `https://coder.github.io/coder-skill-scanner/schema.json` (v1)
-+ Per-scan history (JSON): `https://coder.github.io/coder-skill-scanner/history/index.json`
++ Schema: `https://scanner.registry.coder.com/schema.json` (v1)
++ Per-scan history (JSON): `https://scanner.registry.coder.com/history/index.json`
+
+The custom domain is configured via `site/public/CNAME`; the legacy
+project-page URL (`https://coder.github.io/coder-skill-scanner/`) is
+still redirected by GitHub Pages but should not be used in new code.
 
 ## Public API (v1)
 
@@ -68,19 +72,23 @@ Two badges per skill:
 Embed a status badge in a README:
 
 ```markdown
-![skill scan](https://coder.github.io/coder-skill-scanner/api/v1/skills/coder/setup/badge/status.svg)
+![skill scan](https://scanner.registry.coder.com/api/v1/skills/coder/setup/badge/status.svg)
 ```
 
 Or via shields.io if you want their renderer:
 
 ```markdown
-![skill scan](https://img.shields.io/endpoint?url=https://coder.github.io/coder-skill-scanner/api/v1/skills/coder/setup/badge/status.json)
+![skill scan](https://img.shields.io/endpoint?url=https://scanner.registry.coder.com/api/v1/skills/coder/setup/badge/status.json)
 ```
 
-For a fork, swap the host: `https://<owner>.github.io/<repo>/api/v1/...`.
-The scanner derives the public base URL from `$GITHUB_REPOSITORY` at
-publish time, so the same URL pattern is correct for any fork without
-config changes.
+For a fork, swap the host: `https://<your-host>/api/v1/...`. The scanner
+picks the public base URL at publish time in this order:
+
+1. `site/public/CNAME` (the custom Pages domain, if set),
+2. otherwise `$GITHUB_REPOSITORY` -> `https://<owner>.github.io/<repo>`.
+
+So a fork that just sets a CNAME gets the right URLs everywhere without
+touching workflow code.
 
 ## Running locally
 
@@ -114,6 +122,7 @@ as `/skills/coder/setup` stay client-side.
 |-- scanner/                   # Python module (CLI + enumerate + combine + aggregate + history)
 |-- tests/                     # pytest, no on-disk fixtures
 |-- site/                      # React SPA (Vite + Tailwind + Radix + react-router-dom)
+|   `-- public/CNAME           # custom Pages domain (drop or change for a fork)
 |-- pyproject.toml
 |-- Makefile
 |-- mise.toml                  # pinned Python + Node versions
@@ -140,15 +149,19 @@ This scanner is data-driven. To run it against a different registry:
 2. Edit `config.yaml`'s `catalogue.registry_repo` block.
 3. Configure GitHub Pages on your fork (Settings, Pages, source:
    "GitHub Actions").
-4. Set Actions workflow permissions to "Read and write" so the
+4. Optional: set a custom domain by editing `site/public/CNAME` (one
+   line, the bare host). Delete the file to publish at the github.io
+   project-page URL instead. Whichever you choose, DNS for the host
+   needs to point at `<owner>.github.io` separately.
+5. Set Actions workflow permissions to "Read and write" so the
    publish-release job can create releases.
-5. To enable the LLM semantic pass, set the credential secret matching
+6. To enable the LLM semantic pass, set the credential secret matching
    `config.yaml`'s `scanners.skillspector.llm.provider` on your fork
    (for the default `anthropic` provider, `ANTHROPIC_API_KEY`), AND
    confirm `.github/workflows/scan.yaml` exports that secret into the
    SkillSpector step. Static-only mode (without the secret) is the
    default and works out of the box.
-6. Enable Actions.
+7. Enable Actions.
 
 No source changes required for catalogue changes.
 
