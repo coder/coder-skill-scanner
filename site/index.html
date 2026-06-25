@@ -16,10 +16,22 @@
       (function () {
         var url = new URL(window.location.href);
         var p = url.searchParams.get("p");
-        if (p) {
-          url.searchParams.delete("p");
-          window.history.replaceState(null, "", p + url.search + url.hash);
-        }
+        // Only restore same-origin relative paths so a crafted ?p= can't try
+        // to replace the visible origin (replaceState would throw anyway).
+        if (!p || p[0] !== "/" || p[1] === "/") return;
+        url.searchParams.delete("p");
+        // Parse `p` through URL so its own query/hash compose cleanly with
+        // whatever extra params or hash were on the bounce URL.
+        var restored = new URL(p, window.location.origin);
+        url.searchParams.forEach(function (value, key) {
+          restored.searchParams.append(key, value);
+        });
+        if (!restored.hash) restored.hash = url.hash;
+        window.history.replaceState(
+          null,
+          "",
+          restored.pathname + restored.search + restored.hash,
+        );
       })();
     </script>
 
