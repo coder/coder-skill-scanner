@@ -10,6 +10,31 @@
     />
     <title>Coder Skill Scanner</title>
 
+    <script>
+      // Restore the SPA path captured by public/404.html before main.tsx loads,
+      // so the router sees the original path and can render its 404 route.
+      (function () {
+        var url = new URL(window.location.href);
+        var p = url.searchParams.get("p");
+        // Only restore same-origin relative paths so a crafted ?p= can't try
+        // to replace the visible origin (replaceState would throw anyway).
+        if (!p || p[0] !== "/" || p[1] === "/") return;
+        url.searchParams.delete("p");
+        // Parse `p` through URL so its own query/hash compose cleanly with
+        // whatever extra params or hash were on the bounce URL.
+        var restored = new URL(p, window.location.origin);
+        url.searchParams.forEach(function (value, key) {
+          restored.searchParams.append(key, value);
+        });
+        if (!restored.hash) restored.hash = url.hash;
+        window.history.replaceState(
+          null,
+          "",
+          restored.pathname + restored.search + restored.hash,
+        );
+      })();
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
