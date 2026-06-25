@@ -1,27 +1,11 @@
 """SVG and shields.io-endpoint JSON badge generators.
 
-Two public surfaces.
+JSON endpoints (``/badge/<name>.json``) match shields.io's ``endpoint``
+contract; field names are part of the v1 stability promise.
 
-**JSON endpoints** (``/badge/<name>.json``) match shields.io's ``endpoint``
-badge contract, so a third-party README can embed
-``https://img.shields.io/endpoint?url=<our-json-url>&style=<whatever>`` and
-render the badge in any style shields.io supports. Bytes here are unchanged
-from v1; the contract fields (``schemaVersion``, ``label``, ``message``,
-``color``, ``cacheSeconds``) are stable.
-
-**SVG endpoints** (``/badge/<name>.svg``) serve a fully-rendered SVG. The
-canonical style is shields.io's ``for-the-badge`` (tall, ALL-CAPS, pill
-corners) so the registry's view and a third-party direct embed see the same
-bytes. The scanner fetches the rendered SVG from shields.io at publish time
-and caches it on the GitHub Pages CDN. If shields.io is unreachable, the
-renderer falls back to a self-contained two-rect flat-style SVG (11px
-Verdana) so a publish job never ships an empty badge. The fallback path is
-deliberately a different visual style so an operator can tell at a glance
-which path produced any given file.
-
-A per-run circuit breaker disables further shields.io fetches after the
-first failure within a single ``build-api-v1`` invocation, so a slow or
-dead shields.io adds at most one timeout to a publish, not one per badge.
+SVG endpoints (``/badge/<name>.svg``) serve shields.io's ``for-the-badge``
+style fetched at publish time. The inline two-rect flat renderer is kept
+as a fallback for when shields.io is unreachable.
 """
 
 from __future__ import annotations
@@ -40,45 +24,27 @@ SHIELDS_SCHEMA_VERSION = 1
 # proxy's cache TTL and the catalogue refresh cadence.
 DEFAULT_CACHE_SECONDS = 300
 
-# The canonical visual style for badges served from this scanner. Picked over
-# ``flat`` because the taller pill reads better in the registry's dark UI and
-# differentiates a scan signal from the more numerous npm-style version pills.
-# All four shields.io built-in styles work; if the canonical default ever
-# changes, this constant moves with it.
+# Canonical badge style. Any shields.io built-in works here.
 DEFAULT_BADGE_STYLE = "for-the-badge"
 
-# Where to ask shields.io for a rendered badge. We use the legacy ``static/v1``
-# endpoint because it takes label/message/color as query params directly, so
-# we don't have to URL-encode dashes the way the path-style endpoint requires.
+# ``static/v1`` takes label/message/color as query params so we don't have
+# to URL-encode dashes the way the path-style endpoint requires.
 _SHIELDS_STATIC_ENDPOINT = "https://img.shields.io/static/v1"
 
-# Hard cap on how long we'll wait for shields.io before falling back. The
-# scheduled scan publishes once every six hours so a slow tail is okay, but a
-# dead shields.io should not stall the publish job.
 _SHIELDS_FETCH_TIMEOUT_SECONDS = 10
 
-# Identify ourselves to shields.io. Python's stock urllib UA gets blocked
-# with HTTP 403; a recognisable string also helps if shields.io ever
-# wants to reach out about traffic from this scanner.
+# shields.io 403s the default ``Python-urllib`` UA, so identify ourselves.
 _SHIELDS_USER_AGENT = (
     "coder-skill-scanner/1 (+https://scanner.registry.coder.com)"
 )
 
-# Per-process circuit breaker. Once shields.io fails inside a single
-# ``build-api-v1`` invocation we stop trying for the rest of the run, so a
-# slow or dead shields.io adds at most one ``_SHIELDS_FETCH_TIMEOUT_SECONDS``
-# stall to a publish job rather than one per badge file. Reset between runs
-# happens naturally because the scanner process exits.
+# Set to True after the first shields.io failure inside a run, so the rest
+# of the run skips straight to the fallback. Process exits between runs.
 _shields_disabled_for_run: bool = False
 
 
 def reset_shields_circuit_breaker() -> None:
-    """Clear the per-run shields.io disable flag.
-
-    Exposed for tests so monkeypatched failures don't leak state across
-    cases. Production callers don't need to invoke this - each
-    ``build-api-v1`` run is a fresh process.
-    """
+    """Clear ``_shields_disabled_for_run``. Used by tests."""
     global _shields_disabled_for_run
     _shields_disabled_for_run = False
 
@@ -220,18 +186,10 @@ def fetch_shields_io_svg(
     style: str = DEFAULT_BADGE_STYLE,
     timeout: float = _SHIELDS_FETCH_TIMEOUT_SECONDS,
 ) -> str | None:
-    """Ask shields.io to render a badge in the given style.
+    """Fetch a rendered SVG from shields.io, or ``None`` on any failure.
 
-    Returns the SVG bytes as a UTF-8 string on success, or ``None`` if the
-    request fails for any reason (network error, non-200 response, non-SVG
-    body). Callers fall back to the local :func:`_flat_badge_svg` renderer
-    so a publish never stalls on shields.io.
-
-    Per-run circuit breaker: after the first failure inside a single
-    process, every subsequent call short-circuits to ``None`` without
-    touching the network. That bounds the worst-case shields.io stall in
-    a publish job at exactly one timeout, no matter how many badges are
-    in the report.
+    First failure inside a run flips ``_shields_disabled_for_run`` so the
+    rest of the run short-circuits to the fallback renderer.
     """
     global _shields_disabled_for_run
     if _shields_disabled_for_run:
@@ -252,8 +210,7 @@ def fetch_shields_io_svg(
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if resp.status != 200:
                 log.warning(
-                    "shields.io returned HTTP %s for %s; "
-                    "disabling shields fetch for the rest of this run",
+                    "shields.io HTTP %s for %s; disabling fetch this run",
                     resp.status,
                     url,
                 )
@@ -262,8 +219,7 @@ def fetch_shields_io_svg(
             body = resp.read().decode("utf-8")
     except Exception as exc:
         log.warning(
-            "shields.io fetch failed for %s: %s; "
-            "disabling shields fetch for the rest of this run",
+            "shields.io fetch failed for %s: %s; disabling fetch this run",
             url,
             exc,
         )
@@ -271,8 +227,7 @@ def fetch_shields_io_svg(
         return None
     if not body.lstrip().startswith("<svg"):
         log.warning(
-            "shields.io returned a non-SVG body for %s; "
-            "disabling shields fetch for the rest of this run",
+            "shields.io non-SVG body for %s; disabling fetch this run",
             url,
         )
         _shields_disabled_for_run = True
