@@ -146,11 +146,13 @@ def test_write_api_v1_writes_full_tree(tmp_path: Path):
     setup_detail = json.loads((tmp_path / "skills" / "coder" / "setup.json").read_text())
     assert setup_detail["verdict"] == "malicious"
 
-    # Badge files exist and the SVGs are well-formed strings.
+    # Badge files exist and the SVGs are well-formed strings. for-the-badge
+    # uppercases the message, so accept either case here - this test is about
+    # write_api_v1 wiring, not the badge renderer's exact output.
     verdict_svg = (tmp_path / "skills" / "coder" / "setup" / "badge" / "status.svg").read_text()
     assert verdict_svg.startswith("<svg")
     assert verdict_svg.rstrip().endswith("</svg>")
-    assert "malicious" in verdict_svg
+    assert "malicious" in verdict_svg.lower()
 
     risk_json = json.loads(
         (tmp_path / "skills" / "coder" / "setup" / "badge" / "score.json").read_text()

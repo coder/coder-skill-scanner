@@ -1,26 +1,53 @@
 """SVG and shields.io-endpoint JSON badge generators.
 
-The JSON shape matches shields.io's ``endpoint`` badge contract so a consumer
-can embed ``https://img.shields.io/endpoint?url=<our-json-url>`` directly in
-a README. The SVG endpoint generates a flat-style badge inline (no shields.io
-dependency, no network hop) for sites that want the badge served from the
-same origin as the rest of the report.
+JSON endpoints (``/badge/<name>.json``) match shields.io's ``endpoint``
+contract; field names are part of the v1 stability promise.
 
-Stability: ``schemaVersion``, ``label``, ``message``, ``color``, and
-``cacheSeconds`` are part of the v1 contract. The SVG layout (two-rect flat
-badge, 11px Verdana) is the contract for ``.svg`` consumers.
+SVG endpoints (``/badge/<name>.svg``) serve shields.io's ``for-the-badge``
+style fetched at publish time. The inline two-rect flat renderer is kept
+as a fallback for when shields.io is unreachable.
 """
 
 from __future__ import annotations
 
+import logging
+import urllib.parse
+import urllib.request
 from typing import Any
 from xml.sax.saxutils import escape as _xml_escape
+
+log = logging.getLogger(__name__)
 
 SHIELDS_SCHEMA_VERSION = 1
 
 # Cache hint for shields.io: 5 minutes lines up with the registry-server
 # proxy's cache TTL and the catalogue refresh cadence.
 DEFAULT_CACHE_SECONDS = 300
+
+# Canonical badge style. Any shields.io built-in works here.
+DEFAULT_BADGE_STYLE = "for-the-badge"
+
+# ``static/v1`` takes label/message/color as query params so we don't have
+# to URL-encode dashes the way the path-style endpoint requires.
+_SHIELDS_STATIC_ENDPOINT = "https://img.shields.io/static/v1"
+
+_SHIELDS_FETCH_TIMEOUT_SECONDS = 10
+
+# shields.io 403s the default ``Python-urllib`` UA, so identify ourselves.
+_SHIELDS_USER_AGENT = (
+    "coder-skill-scanner/1 (+https://scanner.registry.coder.com)"
+)
+
+# Set to True after the first shields.io failure inside a run, so the rest
+# of the run skips straight to the fallback. Process exits between runs.
+_shields_disabled_for_run: bool = False
+
+
+def reset_shields_circuit_breaker() -> None:
+    """Clear ``_shields_disabled_for_run``. Used by tests."""
+    global _shields_disabled_for_run
+    _shields_disabled_for_run = False
+
 
 # Shields.io color names.
 _VERDICT_COLORS: dict[str, str] = {
@@ -151,13 +178,90 @@ def _flat_badge_svg(label: str, message: str, color_hex: str) -> str:
     )
 
 
-def status_badge_svg(verdict: str) -> str:
-    """Render the status badge (categorical scan outcome) as inline SVG."""
-    color = _NAMED_HEX[_VERDICT_COLORS.get(verdict, "lightgrey")]
-    return _flat_badge_svg("skill scan", verdict, color)
+def fetch_shields_io_svg(
+    label: str,
+    message: str,
+    color: str,
+    *,
+    style: str = DEFAULT_BADGE_STYLE,
+    timeout: float = _SHIELDS_FETCH_TIMEOUT_SECONDS,
+) -> str | None:
+    """Fetch a rendered SVG from shields.io, or ``None`` on any failure.
+
+    First failure inside a run flips ``_shields_disabled_for_run`` so the
+    rest of the run short-circuits to the fallback renderer.
+    """
+    global _shields_disabled_for_run
+    if _shields_disabled_for_run:
+        return None
+
+    query = urllib.parse.urlencode(
+        {"label": label, "message": message, "color": color, "style": style}
+    )
+    url = f"{_SHIELDS_STATIC_ENDPOINT}?{query}"
+    # shields.io rejects Python's default ``Python-urllib/x.y`` UA with a 403,
+    # so we identify the scanner explicitly. Same User-Agent value we would
+    # use to scrape the catalogue.
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": _SHIELDS_USER_AGENT, "Accept": "image/svg+xml"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status != 200:
+                log.warning(
+                    "shields.io HTTP %s for %s; disabling fetch this run",
+                    resp.status,
+                    url,
+                )
+                _shields_disabled_for_run = True
+                return None
+            body = resp.read().decode("utf-8")
+    except Exception as exc:
+        log.warning(
+            "shields.io fetch failed for %s: %s; disabling fetch this run",
+            url,
+            exc,
+        )
+        _shields_disabled_for_run = True
+        return None
+    if not body.lstrip().startswith("<svg"):
+        log.warning(
+            "shields.io non-SVG body for %s; disabling fetch this run",
+            url,
+        )
+        _shields_disabled_for_run = True
+        return None
+    return body
 
 
-def score_badge_svg(risk_score: int) -> str:
-    """Render the score badge (numeric risk score) as inline SVG."""
-    color = _NAMED_HEX[_risk_color(risk_score)]
-    return _flat_badge_svg("risk score", f"{risk_score}/100", color)
+def status_badge_svg(verdict: str, *, style: str = DEFAULT_BADGE_STYLE) -> str:
+    """Render the status badge (categorical scan outcome) as an SVG string.
+
+    Tries shields.io first in the requested ``style`` so the registry and
+    third-party READMEs see byte-identical, canonical-style badges; falls
+    back to a self-contained ``flat`` rendering if shields.io is unreachable.
+    """
+    color_name = _VERDICT_COLORS.get(verdict, "lightgrey")
+    shielded = fetch_shields_io_svg(
+        "skill scan", verdict, color_name, style=style
+    )
+    if shielded is not None:
+        return shielded
+    return _flat_badge_svg("skill scan", verdict, _NAMED_HEX[color_name])
+
+
+def score_badge_svg(risk_score: int, *, style: str = DEFAULT_BADGE_STYLE) -> str:
+    """Render the score badge (numeric risk score) as an SVG string.
+
+    Same shields-first / inline-fallback behaviour as
+    :func:`status_badge_svg`.
+    """
+    color_name = _risk_color(risk_score)
+    message = f"{risk_score}/100"
+    shielded = fetch_shields_io_svg(
+        "risk score", message, color_name, style=style
+    )
+    if shielded is not None:
+        return shielded
+    return _flat_badge_svg("risk score", message, _NAMED_HEX[color_name])
